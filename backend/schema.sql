@@ -1,0 +1,1 @@
+-- Will house the organized data on products, stores and user info
