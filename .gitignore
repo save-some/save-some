@@ -12,6 +12,8 @@
 .swiftpm/
 migrate_working_dir/
 .env
+backend/.env
+frontend/save-some-ui/.env
 
 # IntelliJ related
 *.iml
@@ -25,14 +27,15 @@ migrate_working_dir/
 #.vscode/
 
 # Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
+frontend/save-some-ui/**/doc/api/
+frontend/save-some-ui/**/ios/Flutter/.last_build_id
+frontend/save-some-ui/.dart_tool/
+frontend/save-some-ui/.flutter-plugins-dependencies
+frontend/save-some-ui/.pub-cache/
+frontend/save-some-ui/.pub/
+frontend/save-some-ui/build/
+frontend/save-some-ui/coverage/
+
 
 # Symbolication related
 app.*.symbols
@@ -44,3 +47,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+
+# Python stuff
+backend/.venv/
+backend/.env
+backend/__pycache__
+backend/routers/__pycache__
+backend/*.pyc
+__pycache__/
+
