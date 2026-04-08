@@ -1,0 +1,11 @@
+# Python
+*.pyc
+*.pyo
+__pycache__/
+routers/__pycache__/
+
+# Virtual environment
+.venv/
+
+# Environment variables
+.env
