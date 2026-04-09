@@ -109,7 +109,7 @@ class _SignUpFormState extends State<SignUpForm> {
                   onPressed: () {
                     Navigator.pop(context);
                   },
-                  child: const Text('back to sign up'),
+                  child: const Text('back to sign in'),
                 ),
               ),
             ],
