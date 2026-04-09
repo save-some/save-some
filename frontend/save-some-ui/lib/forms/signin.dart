@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:save_some_ui/forms/signup.dart';
+
 class SignInForm extends StatefulWidget {
   const SignInForm({super.key});
 
@@ -46,12 +48,10 @@ class _SignInFormState extends State<SignInForm> {
     if (email.isEmpty) return; // silently block — no red text
 
     try {
-
       await Supabase.instance.client.auth.signInWithOtp(
         email: email,
         emailRedirectTo: 'com.yourapp://login-callback', // ← change this
       );
-
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -59,12 +59,13 @@ class _SignInFormState extends State<SignInForm> {
       );
     } on AuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
-  // Google SSO 
+  // Google SSO
   Future<void> _signInWithGoogle() async {
     try {
       await Supabase.instance.client.auth.signInWithOAuth(
@@ -74,12 +75,13 @@ class _SignInFormState extends State<SignInForm> {
       // Navigation is handled by your auth state listener
     } on AuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
-  // GitHub SSO 
+  // GitHub SSO
   Future<void> _signInWithGitHub() async {
     try {
       await Supabase.instance.client.auth.signInWithOAuth(
@@ -88,44 +90,62 @@ class _SignInFormState extends State<SignInForm> {
       );
     } on AuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
-  // Reusable SSO button 
+  /* Reusable SSO Button
   Widget _ssoButton({
     required String assetPath,
-    required String label,
     required VoidCallback onPressed,
   }) {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: SizedBox(
         height: 50,
-        width: double.infinity,
+        width: 50,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15),
           child: ElevatedButton(
             onPressed: onPressed,
             style: _lightBtn,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SvgPicture.asset(
-                  assetPath,
-                  height: 22,
-                  width: 22,
-                  placeholderBuilder: (_) => const SizedBox(
-                    height: 22,
-                    width: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(label, style: const TextStyle(color: Colors.black)),
-              ],
+            child: SvgPicture.asset(
+              assetPath,
+              height: 25,
+              width: 25,
+              placeholderBuilder: (_) => const SizedBox(
+                height: 22,
+                width: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  */
+
+  Widget _ssoButton({
+    required String assetPath,
+    required VoidCallback onPressed,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: ElevatedButton(
+        style: ButtonStyle(),
+        onPressed: onPressed,
+        child: SvgPicture.asset(
+          assetPath,
+          height: 30,
+          width: 30,
+          placeholderBuilder: (_) => const SizedBox(
+            height: 25,
+            width: 25,
+            child: CircularProgressIndicator(strokeWidth: 3),
           ),
         ),
       ),
@@ -138,7 +158,6 @@ class _SignInFormState extends State<SignInForm> {
     final showEmptyWarning = _attempted && email.isEmpty;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('sign-in-form')),
       body: Center(
         child: Container(
           color: Colors.white,
@@ -146,6 +165,43 @@ class _SignInFormState extends State<SignInForm> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Logo?
+              Padding(
+                padding: const EdgeInsets.fromLTRB(23, 0, 23, 4),
+                child: SizedBox(
+                  height: 200,
+                  width: 200,
+                  child: SvgPicture.asset(
+                    'assets/wallet-logo.svg',
+                    height: 200,
+                    width: 200,
+                    placeholderBuilder: (_) => const SizedBox(
+                      height: 25,
+                      width: 25,
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    ),
+                  ),
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.fromLTRB(23, 0, 23, 4),
+                child: SizedBox(
+                  height: 100,
+                  width: 100,
+                  child:  Text(
+                    'Save\nSome',
+                    
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+          
+                      //height: 40, 
+                      fontSize: 30,
+                      color: Colors.black),
+                  ),
+                ),
+              ),
+
               // Email field
               Padding(
                 padding: const EdgeInsets.fromLTRB(23, 0, 23, 4),
@@ -192,38 +248,49 @@ class _SignInFormState extends State<SignInForm> {
 
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+                child: Text('OR, use a provider'),
+              ),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                spacing: 5.0,
+                children: [
+                  _ssoButton(
+                    assetPath: 'assets/google-logo.svg',
+                    //label: 'sign in with google',
+                    onPressed: _signInWithGoogle,
+                  ),
+
+                  //  GitHub
+                  _ssoButton(
+                    assetPath: 'assets/github-logo.svg',
+                    // label: 'sign in with github',
+                    onPressed: _signInWithGitHub,
+                  ),
+
+                  // TODO Microsoft (stub)
+                  _ssoButton(
+                    assetPath: 'assets/microsoft-logo.svg',
+                    //label: 'sign in with microsoft',
+                    onPressed: () {},
+                  ),
+
+                  // TODO Apple (stub)
+                  _ssoButton(
+                    assetPath: 'assets/apple-173-logo.svg',
+                    // label: 'sign in with apple',
+                    onPressed: () {},
+                  ),
+                ],
+              ),
+
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 16),
                 child: Text('OR'),
               ),
 
-              //  Google 
-              _ssoButton(
-                assetPath: 'assets/google-logo.svg',
-                label: 'sign in with google',
-                onPressed: _signInWithGoogle,
-              ),
-
-              //  GitHub
-              _ssoButton(
-                assetPath: 'assets/github-logo.svg',
-                label: 'sign in with github',
-                onPressed: _signInWithGitHub,
-              ),
-
-              // TODO Microsoft (stub) 
-              _ssoButton(
-                assetPath: 'assets/microsoft-logo.svg',
-                label: 'sign in with microsoft',
-                onPressed: () {},
-              ),
-
-              // TODO Apple (stub) 
-              _ssoButton(
-                assetPath: 'assets/apple-173-logo.svg',
-                label: 'sign in with apple',
-                onPressed: () {},
-              ),
-
-              // TODO Passkey (stub) 
+              /* TODO Passkey (stub)
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: SizedBox(
@@ -235,6 +302,35 @@ class _SignInFormState extends State<SignInForm> {
                       onPressed: () {},
                       style: _lightBtn,
                       child: const Text('sign in with a passkey'),
+                    ),
+                  ),
+                ),
+              ),
+              
+
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+                child: Text('OR'),
+              ),
+              */
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: SizedBox(
+                  height: 50,
+                  width: double.infinity,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (context) => const SignUpForm(),
+                          ),
+                        );
+                      },
+                      style: _lightBtn,
+                      child: const Text('sign up'),
                     ),
                   ),
                 ),
