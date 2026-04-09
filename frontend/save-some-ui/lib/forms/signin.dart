@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:save_some_ui/forms/signup.dart';
+import 'package:save_some_ui/screens/home.dart';
 
 class SignInForm extends StatefulWidget {
   const SignInForm({super.key});
@@ -191,7 +192,6 @@ class _SignInFormState extends State<SignInForm> {
                   width: 100,
                   child:  Text(
                     'Save\nSome',
-                    
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
           
@@ -331,6 +331,30 @@ class _SignInFormState extends State<SignInForm> {
                       },
                       style: _lightBtn,
                       child: const Text('sign up'),
+                    ),
+                  ),
+                ),
+              ),
+
+
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: SizedBox(
+                  height: 50,
+                  width: double.infinity,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (context) => const HomeScreen(),
+                          ),
+                        );
+                      },
+                      style: _lightBtn,
+                      child: const Text('skip for now'),
                     ),
                   ),
                 ),
