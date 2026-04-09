@@ -57,11 +57,12 @@ flutter:
 
   uses-material-design: true
   assets:
-      - ../../.env
+      - .env
       - assets/google-logo.svg
       - assets/microsoft-logo.svg
       - assets/github-logo.svg
       - assets/apple-173-logo.svg
+      - assets/wallet-logo.svg
 
     # The following line ensures that the Material Icons font is
     # included with your application, so that you can use the icons in
