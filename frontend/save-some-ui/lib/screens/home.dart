@@ -7,6 +7,8 @@ import 'package:save_some_ui/screens/account.dart';
 import 'package:save_some_ui/screens/history.dart';
 import 'package:save_some_ui/screens/maps.dart';
 
+// import 'package:save_some_ui/forms/signin.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -37,7 +39,15 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Center(
         child: Column(
           children: [
-            const Placeholder(),
+            Padding(
+                padding: const EdgeInsets.fromLTRB(23, 0, 23, 4),
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text('back to sign in'),
+                ),
+              ),
             BottomNavigationBar(
               unselectedItemColor: Colors.grey,
               selectedItemColor: Colors.black,
