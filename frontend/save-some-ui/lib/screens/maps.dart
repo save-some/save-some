@@ -25,6 +25,16 @@ class _MapsScreenState extends State<MapsScreen>
 
   @override
   Widget build(BuildContext context) {
-    return const Placeholder();
+
+    // Starting implementation here ...
+    return const Scaffold (
+      body: Center (
+        child: Column(
+          children: [
+
+          ],
+        ),
+      ),
+    );
   }
 }
