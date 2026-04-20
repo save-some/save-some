@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class MapsScreen extends StatefulWidget {
   const MapsScreen({super.key});
@@ -27,6 +26,7 @@ class _MapsScreenState extends State<MapsScreen>
 
     const token = String.fromEnvironment('MAPBOX_TOKEN');
     MapboxOptions.setAccessToken(token);
+
     _controller = AnimationController(vsync: this);
   }
 
@@ -45,7 +45,28 @@ class _MapsScreenState extends State<MapsScreen>
       pitch: 0,
     );
 
+
     // Starting implementation here ...
-    return Scaffold(body: MapWidget(cameraOptions: camera));
+    return Scaffold(
+      body: MapWidget(
+        cameraOptions: camera,
+        onMapCreated: (mapboxMap) async {
+          // await mapboxMap.location.
+          mapboxMap.location.updateSettings(
+            LocationComponentSettings(
+              locationPuck: LocationPuck(
+                // locationPuck2D: LocationPuck2D(),
+                locationPuck3D: LocationPuck3D(
+                  modelUri:
+                      "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Duck/glTF-Embedded/Duck.gltf",
+                ),
+                
+              ),
+              enabled: true,
+            ),
+          );
+        },
+      ),
+    );
   }
 }
