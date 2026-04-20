@@ -63,3 +63,43 @@ CREATE TABLE product_prices (
 );
 
 
+-- Profiles, tied to Supabase auth.users
+-- Stores the zipcode, avatar image and display name for a user
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id),
+  display_name TEXT NOT NULL,
+  avatar_url TEXT,
+  zipcode TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- User tracked products
+-- Stores the products that a user would like to keep track of
+CREATE TABLE user_products (
+  user_id UUID NOT NULL REFERENCES profiles(id),
+  product_id UUID NOT NULL REFERENCES products(id),
+  added_at TIMESTAMPTZ DEFAULT now(),
+  notes TEXT,
+  target_price REAL,              -- alert user when price drops below this
+  PRIMARY KEY (user_id, product_id)
+);
+
+-- Categories scoped per retailer
+-- Retailer A has TV's & Electronics but Retailer B calls it Electronics, so this table
+-- will be used to store the categories that a retailer has
+CREATE TABLE retailer_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  retailer_id UUID NOT NULL REFERENCES retailers(id),
+  name TEXT NOT NULL,
+  parent_id UUID REFERENCES retailer_categories(id),  -- NULL = top level
+  external_url TEXT,              -- e.g. walmart.com/browse/electronics/3944
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Product to category mapping
+-- Product A belongs to Category Z, while Product B belongs to Category F
+CREATE TABLE product_categories (
+  retailer_product_id UUID NOT NULL REFERENCES retailer_products(id),
+  category_id UUID NOT NULL REFERENCES retailer_categories(id),
+  PRIMARY KEY (retailer_product_id, category_id)
+);
