@@ -103,3 +103,15 @@ CREATE TABLE product_categories (
   category_id UUID NOT NULL REFERENCES retailer_categories(id),
   PRIMARY KEY (retailer_product_id, category_id)
 );
+
+-- Indexes
+-- Will help with improving the retrieval time of many queries 
+CREATE INDEX ON stores(retailer_id);
+CREATE INDEX ON stores(zipcode);
+CREATE INDEX ON retailer_products(product_id);
+CREATE INDEX ON retailer_products(retailer_id);
+CREATE INDEX ON product_prices(retailer_product_id);
+CREATE INDEX ON product_prices(scraped_at);
+CREATE INDEX ON product_prices(store_id);
+CREATE INDEX ON user_products(user_id);
+
