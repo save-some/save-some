@@ -158,6 +158,28 @@ def retrieve_watchlist (conn, user_id: str) -> list:
 
 
 
+def update_watchlist (conn, user_id: str, product_id: str,
+                     target_price: float = None, notes: str = None) -> dict:
+
+	query = """
+		INSERT INTO user_products	
+			(user_id, product_id, target_price, notes)
+		VALUES
+			(%s, %s, %s, %s)
+		RETURNING *	
+	"""
+	with conn.cursor(cursor_factory = RealDictCursor) as cur:
+		cur.execute(query, (
+			user_id,
+			product_id,
+			target_price,
+			notes,
+		)) 
+		row = cur.fetchone()
+		conn.commit()
+		return dict(row) 
+
+
 def update_retailer_product_as_scraped (conn, retailer_product_id: str):
 	"""
 	TODO: Add docustring 
