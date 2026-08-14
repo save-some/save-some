@@ -20,6 +20,7 @@
 - `experimental` - risky spikes, uncertain features
 - `feature/name` - short-lived, merged into dev
 - `bugfix/name` - fixes, merged into dev
+- `maintenance/name` - maintenance, corresponds with issues
 
 ## Directory Structure
 ```
