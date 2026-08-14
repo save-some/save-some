@@ -17,9 +17,10 @@
 ## Version Control
 - `main` - stable, demo-ready code
 - `dev` - integration branch for merging features
-- `experimental` - risky spikes, uncertain features
-- `feature/name` - short-lived, merged into dev
-- `bugfix/name` - fixes, merged into dev
+- `experimental/{name}` - risky spikes, uncertain features
+- `feature/{name}` - short-lived, merged into dev
+- `bugfix/{name}` - fixes, merged into dev
+- `fix/{name}` - fixes, merged into dev
 - `maintenance/name` - maintenance, corresponds with issues
 
 ## Directory Structure
