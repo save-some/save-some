@@ -5,7 +5,7 @@ from typing import Optional
 
 # Retailers
 
-def retrieve_all_retailers(conn) -> list:
+def retrieve_all_retailers (conn) -> list:
     """Return all supported retailers."""
     query = "SELECT * FROM retailers"
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -16,7 +16,7 @@ def retrieve_all_retailers(conn) -> list:
 
 # Categories
 
-def retrieve_categories_for_retailer(conn, retailer_id: str) -> list:
+def retrieve_categories_for_retailer (conn, retailer_id: str) -> list:
     """Return all categories belonging to a specific retailer."""
     query = "SELECT * FROM retailer_categories WHERE retailer_id = %s"
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -25,7 +25,7 @@ def retrieve_categories_for_retailer(conn, retailer_id: str) -> list:
     return rows
 
 
-def retrieve_all_categories(conn) -> list:
+def retrieve_all_categories (conn) -> list:
     """Return every category across all retailers."""
     query = "SELECT * FROM retailer_categories"
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -33,10 +33,22 @@ def retrieve_all_categories(conn) -> list:
         rows = cur.fetchall()
     return rows
 
+def retrieve_all_canonical_categories (conn) -> list:
+    """
+    Return the canonical, retailer-agnostic category list; this is what
+    onboarding/interests use, and what GET /v1/categories should return.
+    """
+    query = "SELECT * FROM categories ORDER BY name"
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+    return rows
+
+
 
 # Products
 
-def retrieve_product_by_id(conn, product_id: str) -> Optional[dict]:
+def retrieve_product_by_id (conn, product_id: str) -> Optional[dict]:
     """Return a single canonical product by id."""
     query = "SELECT * FROM products WHERE id = %s"
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -45,7 +57,7 @@ def retrieve_product_by_id(conn, product_id: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
-def retrieve_best_match_from_products(conn, query: str, threshold: float = 0.3) -> Optional[dict]:
+def retrieve_best_match_from_products (conn, query: str, threshold: float = 0.3) -> Optional[dict]:
     """
     Find the closest matching canonical product by name similarity.
     Used e.g. to dedupe a newly scraped product against existing canonical products.
@@ -64,7 +76,7 @@ def retrieve_best_match_from_products(conn, query: str, threshold: float = 0.3) 
     return dict(row) if row else None
 
 
-def retrieve_products_for_retailer(conn, retailer_id: str, limit: int = 50, offset: int = 0) -> list:
+def retrieve_products_for_retailer (conn, retailer_id: str, limit: int = 50, offset: int = 0) -> list:
     """Canonical products offered by a specific retailer, with retailer-specific data attached."""
     query = """
         SELECT p.*, rp.id AS retailer_product_id, rp.external_id,
@@ -80,9 +92,104 @@ def retrieve_products_for_retailer(conn, retailer_id: str, limit: int = 50, offs
     return rows
 
 
+def search_products_for_retailer (conn, retailer_id: str, search_query: str,
+                                  limit: int = 25, offset: int = 0) -> list:
+    """
+    Search a specific retailer's products by name. Used to back the
+    "search within a retailer" flow on the Products page.
+    """
+    query = """
+        SELECT p.*, rp.id AS retailer_product_id, rp.external_id,
+               rp.product_url, rp.image_url AS retailer_image_url
+        FROM retailer_products rp
+        JOIN products p ON p.id = rp.product_id
+        WHERE rp.retailer_id = %s AND p.name ILIKE %s
+        ORDER BY p.name
+        LIMIT %s OFFSET %s
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (retailer_id, f"%{search_query}%", limit, offset))
+        rows = cur.fetchall()
+    return rows
+ 
+ 
+def search_products (conn, search_query: str, limit: int = 25, offset: int = 0) -> list:
+    """
+    Search canonical products by name, across all retailers.
+    Backs POST /v1/products/search.
+    """
+    query = """
+        SELECT * FROM products
+        WHERE name ILIKE %s
+        ORDER BY name
+        LIMIT %s OFFSET %s
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (f"%{search_query}%", limit, offset))
+        rows = cur.fetchall()
+    return rows
+ 
+ 
+def retrieve_trending_products (conn, limit: int = 20, days: int = 7) -> list:
+    """
+    Naive "trending" = products with the biggest recent price drop
+    (original_price -> price) among prices scraped in the last `days`.
+    This is a placeholder until there's a real recommendation engine —
+    it only needs product_prices.original_price to be populated.
+    """
+    query = """
+        SELECT p.*, pp.price, pp.original_price,
+               (pp.original_price - pp.price) AS price_drop,
+               rp.retailer_id
+        FROM product_prices pp
+        JOIN retailer_products rp ON rp.id = pp.retailer_product_id
+        JOIN products p ON p.id = rp.product_id
+        WHERE pp.scraped_at >= now() - (%s || ' days')::interval
+          AND pp.original_price IS NOT NULL
+          AND pp.original_price > pp.price
+        ORDER BY price_drop DESC
+        LIMIT %s
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (days, limit))
+        rows = cur.fetchall()
+    return rows
+ 
+def retrieve_price_history (conn, product_id: str, retailer_id: str = None,
+                            limit: int = 100) -> list:
+    """
+    Price history for a canonical product, optionally scoped to one retailer.
+    Backs the History page's "Product Price history" and
+    GET /v1/products/{uuid}/price-history.
+    """
+    query = """
+        SELECT pp.price, pp.original_price, pp.in_stock, pp.scraped_at,
+               rp.retailer_id, rp.id AS retailer_product_id
+        FROM product_prices pp
+        JOIN retailer_products rp ON rp.id = pp.retailer_product_id
+        WHERE rp.product_id = %s
+    """
+    params = [product_id]
+ 
+    if retailer_id:
+        query += " AND rp.retailer_id = %s"
+        params.append(retailer_id)
+ 
+    query += " ORDER BY pp.scraped_at DESC LIMIT %s"
+    params.append(limit)
+ 
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, tuple(params))
+        rows = cur.fetchall()
+    return rows
+ 
+
+
+
+
 # Retailer Products
 
-def retrieve_retailer_product(conn, retailer_id: str, external_id: str) -> Optional[dict]:
+def retrieve_retailer_product (conn, retailer_id: str, external_id: str) -> Optional[dict]:
     """Look up a retailer_product row by the retailer's own external id."""
     query = """
         SELECT * FROM retailer_products
@@ -96,7 +203,7 @@ def retrieve_retailer_product(conn, retailer_id: str, external_id: str) -> Optio
 
 # Stores / Maps
 
-def retrieve_nearby_stores(conn, lat: float, lng: float,
+def retrieve_nearby_stores (conn, lat: float, lng: float,
                             retailer_ids: list = None, radius_miles: float = 25) -> list:
     """Stores within radius_miles of (lat, lng), nearest first. Optionally filter by retailer_ids."""
     query = """
@@ -128,7 +235,7 @@ def retrieve_nearby_stores(conn, lat: float, lng: float,
 
 # Profiles
 
-def retrieve_user_profile(conn, user_id: str) -> Optional[dict]:
+def retrieve_user_profile (conn, user_id: str) -> Optional[dict]:
     """Return a user's profile (display name, zipcode, avatar)."""
     query = "SELECT * FROM profiles WHERE id = %s"
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -137,9 +244,49 @@ def retrieve_user_profile(conn, user_id: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def retrieve_user_zipcode (conn, user_id: str) -> Optional[str]:
+    """Return a user's zipcode for the Maps page."""
+    query = "SELECT zipcode FROM profiles WHERE id = %s"
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (user_id,))
+        row = cur.fetchone()
+    return row["zipcode"] if row else None
+
+
+def retrieve_user_interests (conn, user_id: str) -> list:
+    """Canonical categories a user marked as interests."""
+    query = """
+        SELECT c.* FROM user_interests ui
+        JOIN categories c ON c.id = ui.category_id
+        WHERE ui.user_id = %s
+        ORDER BY c.name
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (user_id,))
+        rows = cur.fetchall()
+    return rows
+ 
+ 
+def retrieve_user_retailers (conn, user_id: str) -> list:
+    """Retailers a user picked during onboarding / cares about."""
+    query = """
+        SELECT r.* FROM user_retailers ur
+        JOIN retailers r ON r.id = ur.retailer_id
+        WHERE ur.user_id = %s
+        ORDER BY r.name
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (user_id,))
+        rows = cur.fetchall()
+    return rows
+ 
+
+
+
+
 # Watchlist
 
-def retrieve_watchlist(conn, user_id: str) -> list:
+def retrieve_watchlist (conn, user_id: str) -> list:
     """All products a user is tracking, joined with product info."""
     query = """
         SELECT up.product_id, up.target_price, up.notes, up.added_at,
@@ -155,7 +302,7 @@ def retrieve_watchlist(conn, user_id: str) -> list:
     return rows
 
 
-def upsert_watchlist_item(conn, user_id: str, product_id: str,
+def upsert_watchlist_item (conn, user_id: str, product_id: str,
                            target_price: float = None, notes: str = None) -> dict:
     """Add a product to a user's watchlist, or update target_price/notes if already tracked."""
     query = """
@@ -173,7 +320,7 @@ def upsert_watchlist_item(conn, user_id: str, product_id: str,
     return dict(row)
 
 
-def delete_from_watchlist(conn, user_id: str, product_id: str) -> bool:
+def delete_from_watchlist (conn, user_id: str, product_id: str) -> bool:
     """Remove a product from a user's watchlist. Returns True if a row was deleted."""
     query = """
         DELETE FROM user_products
@@ -185,3 +332,34 @@ def delete_from_watchlist(conn, user_id: str, product_id: str) -> bool:
         row = cur.fetchone()
         conn.commit()
     return row is not None
+
+
+
+# Search history (History page)
+ 
+def log_search (conn, user_id: str, query_text: str) -> dict:
+    """Record a search so the History page can show it later."""
+    query = """
+        INSERT INTO search_history (user_id, query)
+        VALUES (%s, %s)
+        RETURNING *
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (user_id, query_text))
+        row = cur.fetchone()
+        conn.commit()
+    return dict(row)
+ 
+ 
+def retrieve_search_history (conn, user_id: str, limit: int = 50) -> list:
+    """A user's past searches, most recent first."""
+    query = """
+        SELECT * FROM search_history
+        WHERE user_id = %s
+        ORDER BY searched_at DESC
+        LIMIT %s
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (user_id, limit))
+        rows = cur.fetchall()
+    return rows
