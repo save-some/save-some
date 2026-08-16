@@ -137,6 +137,16 @@ def retrieve_user_profile(conn, user_id: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def retrieve_user_zipcode(conn, user_id: str) -> Optional[str]:
+    """Return a user's zipcode for the Maps page."""
+    query = "SELECT zipcode FROM profiles WHERE id = %s"
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (user_id,))
+        row = cur.fetchone()
+    return row["zipcode"] if row else None
+
+
+
 # Watchlist
 
 def retrieve_watchlist(conn, user_id: str) -> list:
@@ -185,3 +195,34 @@ def delete_from_watchlist(conn, user_id: str, product_id: str) -> bool:
         row = cur.fetchone()
         conn.commit()
     return row is not None
+
+
+
+# Search history (History page)
+ 
+def log_search(conn, user_id: str, query_text: str) -> dict:
+    """Record a search so the History page can show it later."""
+    query = """
+        INSERT INTO search_history (user_id, query)
+        VALUES (%s, %s)
+        RETURNING *
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (user_id, query_text))
+        row = cur.fetchone()
+        conn.commit()
+    return dict(row)
+ 
+ 
+def retrieve_search_history(conn, user_id: str, limit: int = 50) -> list:
+    """A user's past searches, most recent first."""
+    query = """
+        SELECT * FROM search_history
+        WHERE user_id = %s
+        ORDER BY searched_at DESC
+        LIMIT %s
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (user_id, limit))
+        rows = cur.fetchall()
+    return rows
