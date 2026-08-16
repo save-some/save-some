@@ -14,7 +14,7 @@ router = APIRouter (
 @router.get("/", response_model=List[Retailer])
 def list_retailers():
     with get_db_handle() as conn:
-        return db.retrieve_all_retailers(conn)
+        return retrieve_all_retailers(conn)
 
 
 
@@ -26,14 +26,13 @@ def retailer_products(
     offset: int = 0,
 ):
     """
-    Consolidated per your own note: lists a retailer's products, or
-    searches within them if `q` is supplied — no separate
-    POST /v1/retailers/{uuid}/search endpoint needed.
+    Lists a retailer's products, or searches within them if `q` is supplied; 
+    no separate POST /v1/retailers/{uuid}/search endpoint needed.
     """
-    with get_conn() as conn:
+    with get_db_handle() as conn:
         if q:
-            rows = db.search_products_for_retailer(conn, retailer_id, q, limit=limit, offset=offset)
+            rows = search_products_for_retailer(conn, retailer_id, q, limit=limit, offset=offset)
         else:
-            rows = db.retrieve_products_for_retailer(conn, retailer_id, limit=limit, offset=offset)
+            rows = retrieve_products_for_retailer(conn, retailer_id, limit=limit, offset=offset)
     return {"products": rows}
  
