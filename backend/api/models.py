@@ -8,6 +8,8 @@ This file mirrors the database in terms of tables and stuff that can be accessed
 
 """
 
+# Store related stuff ... (categories, retailers & stores)
+
 class Category (BaseModel):
     id: UUID
     name: str
@@ -35,6 +37,8 @@ class Store(BaseModel):
     distance_miles: Optional[float] = None  # populated by nearby-store queries
 
 
+# Product related stuff ... 
+
 class Product (BaseModel):
     id: UUID
     name: str
@@ -44,6 +48,17 @@ class Product (BaseModel):
     brand: Optional[str] = None
     created_at: datetime
 
+
+class ProductPrice (BaseModel):
+    price: float
+    original_price: Optional[float] = None
+    in_stock: bool = True
+    scraped_at: datetime
+    retailer_id: Optional[UUID] = None
+    retailer_product_id: Optional[UUID] = None
+
+
+# User stuff ...
 
 class User (BaseModel):
     id: UUID
