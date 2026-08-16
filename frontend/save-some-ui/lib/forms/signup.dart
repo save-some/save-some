@@ -53,7 +53,6 @@ class _SignUpFormState extends State<SignUpForm> {
                   width: 100,
                   child:  Text(
                     'Save\nSome',
-                    
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
           
