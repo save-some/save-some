@@ -11,11 +11,13 @@ router = APIRouter (
 )
 
 
-@router.get("/", response_model=List[Retailer])
+@router.get("/", response_model = List[Retailer])
 def list_retailers():
+    """
+    List all of the retailers on the platform
+    """
     with get_db_handle() as conn:
         return retrieve_all_retailers(conn)
-
 
 
 @router.get("/{retailer_id}/products")
@@ -35,4 +37,22 @@ def retailer_products(
         else:
             rows = retrieve_products_for_retailer(conn, retailer_id, limit=limit, offset=offset)
     return {"products": rows}
+ 
+
+
+ 
+@router.get("/locations", response_model = List[Store])
+def retailer_locations(
+    lat: float,
+    lng: float,
+    radius_miles: float = 25,
+    retailer_ids: Optional[List[str]] = Query(None),
+):
+    """
+    Feeds store pins to the MapBox view.
+    """
+    with get_db_handle() as conn:
+        return db.retrieve_nearby_stores(
+            conn, lat = lat, lng = lng, retailer_ids = retailer_ids, radius_miles = radius_miles
+        )
  
