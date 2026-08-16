@@ -1,5 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
-from helpers.db import retrieve_all_retailers, retrieve_products_for_retailer
+from helpers.db import (
+    retrieve_all_retailers, 
+    retrieve_products_for_retailer
+)
 from api.models import Category, Product, Retailer, Store, User
 from typing import Optional, List, Dict
 from api.utils import get_db_handle
