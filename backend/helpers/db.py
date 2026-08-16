@@ -155,7 +155,7 @@ def retrieve_trending_products (conn, limit: int = 20, days: int = 7) -> list:
         rows = cur.fetchall()
     return rows
  
-def retrieve_price_history(conn, product_id: str, retailer_id: str = None,
+def retrieve_price_history (conn, product_id: str, retailer_id: str = None,
                             limit: int = 100) -> list:
     """
     Price history for a canonical product, optionally scoped to one retailer.
