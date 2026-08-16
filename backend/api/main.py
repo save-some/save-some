@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routers import categories, retailers, users, products
 from api.models import Category, Product, Retailer, Store, User
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 origins = [
@@ -21,7 +21,7 @@ application.add_middleware (
     allow_headers = ["*s"],
 )
 
-uptime = datetime.now()
+start = datetime.now(timezone.utc)
 
 application.include_router(users.router)
 application.include_router(categories.router)
@@ -38,7 +38,7 @@ async def root ():
 @application.get ("/uptime")
 async def uptime ():
     return {
-        "uptime": str(uptime - datetime.now())
+        "uptime": str(datetime.now(timezone.utc) - start) 
     }
 
 @application.get ("/health")
