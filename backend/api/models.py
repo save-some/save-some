@@ -57,6 +57,22 @@ class ProductPrice (BaseModel):
     retailer_id: Optional[UUID] = None
     retailer_product_id: Optional[UUID] = None
 
+ 
+class ProductSearchRequest(BaseModel):
+    query: str
+    limit: int = 25
+    offset: int = 0
+ 
+ 
+class ProductSearchResponse(BaseModel):
+    products: List[Product]
+ 
+ 
+class RetailerSearchRequest(BaseModel):
+    query: str
+    limit: int = 25
+    offset: int = 0
+
 
 # User stuff ...
 
@@ -69,3 +85,18 @@ class User (BaseModel):
     retailers: Optional[List[Retailer]] = None
 
 
+# Onboarding stuff ... 
+
+class OnboardingRequest(BaseModel):
+    zipcode: str
+    retailers: List[UUID]
+    interests: List[UUID]
+ 
+ 
+
+# History stuff ... 
+ 
+class SearchHistoryEntry(BaseModel):
+    id: UUID
+    query: str
+    searched_at: datetime
