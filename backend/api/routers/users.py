@@ -17,6 +17,12 @@ router = APIRouter (
 )
 
 
+@router.get("/{user_id}/profile")
+def user_profile (user_id: str):
+	with get_db_handle() as conn:
+		return retrieve_user_profile(conn, user_id)
+
+
 @router.get("/{user_id}/interests", response_model = List[Category])
 def user_interests(user_id: str):
     with get_db_handle() as conn:
