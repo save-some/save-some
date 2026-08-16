@@ -26,7 +26,7 @@ uptime = datetime.now()
 application.include_router(users.router)
 application.include_router(categories.router)
 application.include_router(retailers.router)
-application.include_router(products.routter)
+application.include_router(products.router)
 
 @application.get ("/")
 async def root ():
