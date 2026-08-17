@@ -6,6 +6,7 @@ from helpers.db import (
     retrieve_products_for_retailers,
     retrieve_price_history,
     retrieve_trending_products,
+    retrieve_watchlist,
     search_products_for_retailer, 
     search_products,
 )
@@ -66,3 +67,9 @@ def product_price_history(
 ):
     with get_db_handle() as conn:
         return retrieve_price_history(conn, product_id, retailer_id=retailer_id, limit=limit)
+
+
+@app.get("/v1/user/{user_id}/watchlist", response_model=List[Product])
+def get_user_watchlist(user_id: str):
+    with get_conn() as conn:
+        return retrieve_watchlist(conn, user_id)
