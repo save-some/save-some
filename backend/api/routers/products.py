@@ -24,14 +24,27 @@ router = APIRouter (
 @router.get("/trending", response_model = List[Product])
 def trending_products(limit: int = Query(20, le=100)):
     with get_db_handle() as conn:
-        rows = retrieve_trending_products(conn, limit=limit)
-    # retrieve_trending_products returns extra price columns tacked on to
-    # the product row — trim to just the Product shape here.
-    return [
-        {k: v for k, v in row.items()
-         if k in Product.model_fields}
-        for row in rows
-    ]
+        return retreive_trending_products(conn, limit=limit)
+
+
+@router.get("/", response_model=List[Product])
+def browse_products(
+    retailer_ids: Optional[List[str]] = Query(
+        None, description="Filter to these retailers; omit for all retailers"
+    ),
+    limit: int = Query(50, le=200),
+    offset: int = 0,
+):
+    """
+    Backs the Products page's retailer-chip multi-select filter.
+    No retailer_ids = browse everything.
+    """
+    with get_conn() as conn:
+        return retrieve_products_for_retailers(
+            conn, retailer_ids=retailer_ids, limit=limit, offset=offset
+        )
+
+    
 
 @router.post("/search", response_model = ProductSearchResponse)
 def search_products(body: ProductSearchRequest, user_id: Optional[str] = None):

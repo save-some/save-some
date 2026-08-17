@@ -131,12 +131,12 @@ def search_products (conn, search_query: str, limit: int = 25, offset: int = 0) 
  
  
 def retrieve_trending_products (conn, limit: int = 20, days: int = 360) -> list:
-    """
-    Naive "trending" = products with the biggest recent price drop
-    (original_price -> price) among prices scraped in the last `days`.
-    This is a placeholder until there's a real recommendation engine —
-    it only needs product_prices.original_price to be populated.
-    """
+	"""
+	Naive "trending" = products with the biggest recent price drop
+	(original_price -> price) among prices scraped in the last `days`.
+	This is a placeholder until there's a real recommendation engine —
+	it only needs product_prices.original_price to be populated.
+	"""
 	query = """
 		SELECT p.*, pp.price, pp.original_price,
 			   COALESCE(pp.original_price - pp.price, 0) AS price_drop,
@@ -150,11 +150,11 @@ def retrieve_trending_products (conn, limit: int = 20, days: int = 360) -> list:
 		LIMIT %s
 	"""
 
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(query, (days, limit))
-        rows = cur.fetchall()
-    return rows
- 
+	with conn.cursor(cursor_factory=RealDictCursor) as cur:
+		cur.execute(query, (days, limit))
+		rows = cur.fetchall()
+	return rows
+	 
 def retrieve_price_history (conn, product_id: str, retailer_id: str = None,
                             limit: int = 100) -> list:
     """

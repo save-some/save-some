@@ -40,13 +40,13 @@ class Store(BaseModel):
 # Product related stuff ... 
 
 class Product (BaseModel):
-    id: UUID
-    name: str
-    description: Optional[str] = None
-    image_url: Optional[str] = None
-    upc: Optional[str] = None
-    brand: Optional[str] = None
-    created_at: datetime
+	id: UUID
+	name: str
+	description: Optional[str] = None
+	image_url: Optional[str] = None
+	upc: Optional[str] = None
+	brand: Optional[str] = None
+	created_at: datetime
 
 	# Optional context for a product
 	retailer_id: Optional[UUID] = None
