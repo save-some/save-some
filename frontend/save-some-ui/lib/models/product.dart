@@ -27,6 +27,14 @@ class Product {
   final String? brand;
   final DateTime createdAt;
  
+  final String? retailerId;
+  final String? retailerName;
+  final double? price;
+  final double? originalPrice;
+  final double? targetPrice;
+  final String? notes;
+  final DateTime? trackedAt;
+ 
   Product({
     required this.id,
     required this.name,
@@ -35,6 +43,13 @@ class Product {
     this.upc,
     this.brand,
     required this.createdAt,
+    this.retailerId,
+    this.retailerName,
+    this.price,
+    this.originalPrice,
+    this.targetPrice,
+    this.notes,
+    this.trackedAt,
   });
  
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -45,6 +60,15 @@ class Product {
         upc: json['upc'] as String?,
         brand: json['brand'] as String?,
         createdAt: _parseDate(json['created_at']),
+        retailerId: json['retailer_id'] as String?,
+        retailerName: json['retailer_name'] as String?,
+        price: _parseDoubleOrNull(json['price']),
+        originalPrice: _parseDoubleOrNull(json['original_price']),
+        targetPrice: _parseDoubleOrNull(json['target_price']),
+        notes: json['notes'] as String?,
+        trackedAt: json['tracked_at'] == null
+            ? null
+            : _parseDate(json['tracked_at']),
       );
  
   Map<String, dynamic> toJson() => {
@@ -55,6 +79,13 @@ class Product {
         'upc': upc,
         'brand': brand,
         'created_at': createdAt.toIso8601String(),
+        'retailer_id': retailerId,
+        'retailer_name': retailerName,
+        'price': price,
+        'original_price': originalPrice,
+        'target_price': targetPrice,
+        'notes': notes,
+        'tracked_at': trackedAt?.toIso8601String(),
       };
 }
- 
+
