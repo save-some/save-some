@@ -1,4 +1,5 @@
- 
+
+
 DateTime _parseDate(dynamic value) => DateTime.parse(value as String);
  
 double? _parseDoubleOrNull(dynamic value) =>
@@ -12,49 +13,38 @@ List<T> _parseList<T>(
   return (value as List)
       .map((item) => fromJson(item as Map<String, dynamic>))
       .toList();
-}
+} 
+
+
+// ---- Retailer ----
+// GET /v1/retailers
  
- 
-// ---- Product ----
-// GET /v1/products/trending, POST /v1/products/search, etc.
- 
-class Product {
+class Retailer {
   final String id;
   final String name;
-  final String? description;
-  final String? imageUrl;
-  final String? upc;
-  final String? brand;
+  final String? website;
   final DateTime createdAt;
  
-  Product({
+  Retailer({
     required this.id,
     required this.name,
-    this.description,
-    this.imageUrl,
-    this.upc,
-    this.brand,
+    this.website,
     required this.createdAt,
   });
  
-  factory Product.fromJson(Map<String, dynamic> json) => Product(
+  factory Retailer.fromJson(Map<String, dynamic> json) => Retailer(
         id: json['id'] as String,
         name: json['name'] as String,
-        description: json['description'] as String?,
-        imageUrl: json['image_url'] as String?,
-        upc: json['upc'] as String?,
-        brand: json['brand'] as String?,
+        website: json['website'] as String?,
         createdAt: _parseDate(json['created_at']),
       );
  
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
-        'description': description,
-        'image_url': imageUrl,
-        'upc': upc,
-        'brand': brand,
+        'website': website,
         'created_at': createdAt.toIso8601String(),
       };
 }
  
+
