@@ -143,7 +143,7 @@ def search_products_for_retailer (conn, retailer_id: str, search_query: str,
     return rows
  
  
-def search_products (conn, search_query: str, limit: int = 25, offset: int = 0) -> list:
+def query_products (conn, search_query: str, limit: int = 25, offset: int = 0) -> list:
     """
     Search canonical products by name, across all retailers.
     Backs POST /v1/products/search.

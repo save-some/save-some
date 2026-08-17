@@ -49,7 +49,7 @@ def get_user_retailers(user_id: str):
         return retrieve_user_retailers(conn, user_id)
 
 
-@router.get("{user_id}/watchlist", response_model=List[Product])
+@router.get("/{user_id}/watchlist", response_model=List[Product])
 def get_user_watchlist(user_id: str):
     with get_db_handle() as conn:
         return retrieve_watchlist(conn, user_id)

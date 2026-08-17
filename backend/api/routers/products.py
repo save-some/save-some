@@ -8,7 +8,7 @@ from helpers.db import (
     retrieve_trending_products,
     retrieve_watchlist,
     search_products_for_retailer, 
-    search_products,
+    query_products,
 )
 from api.models import (
     Category, Product, Retailer, Store, User, 
@@ -41,7 +41,7 @@ def browse_products(
     Backs the Products page's retailer-chip multi-select filter.
     No retailer_ids = browse everything.
     """
-    with get_conn() as conn:
+    with get_db_handle() as conn:
         return retrieve_products_for_retailers(
             conn, retailer_ids=retailer_ids, limit=limit, offset=offset
         )
@@ -51,7 +51,7 @@ def browse_products(
 @router.post("/search", response_model = ProductSearchResponse)
 def search_products(body: ProductSearchRequest, user_id: Optional[str] = None):
     with get_db_handle() as conn:
-        rows = search_products(conn, body.query, limit=body.limit, offset=body.offset)
+        rows = query_products(conn, body.query, limit=body.limit, offset=body.offset)
         # If the caller is a known user, log it for the History page.
         # (Anonymous/no user_id searches just aren't recorded.)
         if user_id:
