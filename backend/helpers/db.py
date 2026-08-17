@@ -91,6 +91,36 @@ def retrieve_products_for_retailer (conn, retailer_id: str, limit: int = 50, off
         rows = cur.fetchall()
     return rows
 
+def retrieve_products_for_retailers (conn, retailer_ids: Optional[list] = None,
+                                     limit: int = 50, offset: int = 0) -> list:
+    """
+    Browse products across one or more retailers, retailer name attached.
+    retailer_ids=None (or empty) returns products across every retailer —
+    backs the Products page's default (no chips selected) view as well
+    as the multi-select retailer-chip filter.
+    """
+    query = """
+        SELECT p.*, rp.id AS retailer_product_id, rp.retailer_id,
+               r.name AS retailer_name
+        FROM retailer_products rp
+        JOIN products p ON p.id = rp.product_id
+        JOIN retailers r ON r.id = rp.retailer_id
+    """
+    params = []
+    if retailer_ids:
+        query += " WHERE rp.retailer_id = ANY(%s)"
+        params.append(retailer_ids)
+    query += " ORDER BY p.name LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+ 
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, tuple(params))
+        rows = cur.fetchall()
+    return rows
+ 
+ 
+
+
 
 def search_products_for_retailer (conn, retailer_id: str, search_query: str,
                                   limit: int = 25, offset: int = 0) -> list:

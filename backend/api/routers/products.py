@@ -3,6 +3,7 @@ from helpers.db import (
     retrieve_product_by_id, 
     retrieve_best_match_from_products, 
     retrieve_products_for_retailer, 
+    retrieve_products_for_retailers,
     retrieve_price_history,
     retrieve_trending_products,
     search_products_for_retailer, 
@@ -24,7 +25,7 @@ router = APIRouter (
 @router.get("/trending", response_model = List[Product])
 def trending_products(limit: int = Query(20, le=100)):
     with get_db_handle() as conn:
-        return retreive_trending_products(conn, limit=limit)
+        return retrieve_trending_products(conn, limit=limit)
 
 
 @router.get("/", response_model=List[Product])
