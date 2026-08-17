@@ -137,17 +137,18 @@ def retrieve_trending_products (conn, limit: int = 20, days: int = 360) -> list:
     This is a placeholder until there's a real recommendation engine —
     it only needs product_prices.original_price to be populated.
     """
-    query = """
-        SELECT p.*, pp.price, pp.original_price,
-               COALESCE(pp.original_price - pp.price, 0) AS price_drop,
-               rp.retailer_id
-        FROM product_prices pp
-        JOIN retailer_products rp ON rp.id = pp.retailer_product_id
-        JOIN products p ON p.id = rp.product_id
-        WHERE pp.scraped_at >= now() - (%s || ' days')::interval
-        ORDER BY price_drop DESC, pp.scraped_at DESC
-        LIMIT %s
-    """
+	query = """
+		SELECT p.*, pp.price, pp.original_price,
+			   COALESCE(pp.original_price - pp.price, 0) AS price_drop,
+			   rp.retailer_id, r.name AS retailer_name
+		FROM product_prices pp
+		JOIN retailer_products rp ON rp.id = pp.retailer_product_id
+		JOIN products p ON p.id = rp.product_id
+		JOIN retailers r ON r.id = rp.retailer_id
+		WHERE pp.scraped_at >= now() - (%s || ' days')::interval
+		ORDER BY price_drop DESC, pp.scraped_at DESC
+		LIMIT %s
+	"""
 
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(query, (days, limit))
@@ -285,11 +286,15 @@ def retrieve_user_retailers (conn, user_id: str) -> list:
 
 # Watchlist
 
-def retrieve_watchlist (conn, user_id: str) -> list:
-    """All products a user is tracking, joined with product info."""
+def retrieve_watchlist(conn, user_id: str) -> list:
+    """All products a user is tracking, joined with product info. Column
+    names/aliases match the unified Product model shape (id not
+    product_id, tracked_at not added_at) so this can be returned as
+    List[Product] directly."""
     query = """
-        SELECT up.product_id, up.target_price, up.notes, up.added_at,
-               p.name, p.description, p.image_url, p.brand
+        SELECT p.id, p.name, p.description, p.image_url, p.upc, p.brand,
+               p.created_at, up.target_price, up.notes,
+               up.added_at AS tracked_at
         FROM user_products up
         JOIN products p ON p.id = up.product_id
         WHERE up.user_id = %s
