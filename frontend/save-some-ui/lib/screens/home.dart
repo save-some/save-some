@@ -6,18 +6,19 @@ import 'package:save_some_ui/screens/account.dart';
 import 'package:save_some_ui/screens/history.dart';
 import 'package:save_some_ui/screens/maps.dart';
 
+import 'package:save_some_ui/config/env.dart';
 import 'package:save_some_ui/models/models.dart';
-import 'package:save_some_ui/models/trending_product.dart';
+import 'package:save_some_ui/widgets/cards/product.dart';
 import 'package:save_some_ui/services/api_client.dart';
 import 'package:save_some_ui/services/home_service.dart';
 import 'package:save_some_ui/services/products_service.dart';
 import 'package:save_some_ui/services/users_service.dart';
 
-import 'package:save_some_ui/config/env.dart';
-
 /// Home tab content: greeting, interest chips, trending products.
 ///
-/// `userId` is a placeholder param until real session/auth state exists.
+/// `userId` is a placeholder param until real session/auth state exists
+/// — wire it up to wherever the logged-in user's id ends up living once
+/// that's built.
 class HomeContent extends StatefulWidget {
   final String userId;
 
@@ -44,19 +45,9 @@ class _HomeContentState extends State<HomeContent> {
 
   Future<void> _refresh() async {
     final next = _homeService.load(widget.userId);
-    setState(() {
-      _homeData = next;
-    });
-    await next;
-  }
-
-  /*
-  Future<void> _refresh() async {
-    final next = _homeService.load(widget.userId);
     setState(() => _homeData = next);
     await next;
   }
-  */
 
   @override
   Widget build(BuildContext context) {
@@ -71,13 +62,20 @@ class _HomeContentState extends State<HomeContent> {
         }
 
         final data = snapshot.data!;
+        // No profile row yet (e.g. anonymous/new user who hasn't
+        // onboarded) — send them there instead of rendering a broken page.
+        if (data.profile == null) {
+          return const _NeedsOnboardingState();
+        }
+        final profile = data.profile!;
+
         return RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             children: [
               Text(
-                'Welcome back,\n${data.profile.displayName}',
+                'Welcome back,\n${profile.displayName}',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -101,7 +99,7 @@ class _HomeContentState extends State<HomeContent> {
                     ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 12),
-              ...data.trending.map((p) => _TrendingCard(product: p)),
+              ...data.trending.map((p) => ProductCard(product: p)),
             ],
           ),
         );
@@ -139,62 +137,21 @@ class _InterestChips extends StatelessWidget {
   }
 }
 
-class _TrendingCard extends StatelessWidget {
-  final TrendingProduct product;
-  const _TrendingCard({required this.product});
+
+
+class _NeedsOnboardingState extends StatelessWidget {
+  const _NeedsOnboardingState();
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 0,
-      color: Colors.grey[100],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    // TODO: replace with Navigator.push to your onboarding flow once
+    // it exists as a route.
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.deepPurple[100],
-              child: Text(
-                (product.retailerName?.isNotEmpty ?? false)
-                    ? product.retailerName![0]
-                    : '?',
-                style: const TextStyle(color: Colors.deepPurple),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.retailerName ?? 'Unknown retailer',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    product.product.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey[700]),
-                  ),
-                ],
-              ),
-            ),
-            if (product.imageUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  product.imageUrl!,
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.image_not_supported),
-                ),
-              ),
-          ],
+        padding: EdgeInsets.all(24),
+        child: Text(
+          "Looks like you haven't finished setting up your account yet.",
+          textAlign: TextAlign.center,
         ),
       ),
     );
@@ -244,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Can't be a static const list anymore since HomeContent now needs
     // widget.userId, which isn't known at compile time.
     final pages = <Widget>[
-      const ProductScreen(),
+      ProductScreen(userId: widget.userId),
       const MapsScreen(),
       HomeContent(userId: widget.userId),
       const HistoryScreen(),

@@ -33,6 +33,14 @@ class ApiClient {
     return _decode(response);
   }
 
+  /// Like [get], but `pathWithQuery` already contains its full query
+  /// string. Needed when a query key repeats (e.g. `?retailer_ids=a&retailer_ids=b`),
+  /// which the `Map<String, dynamic>` shape of [get]'s `query` param can't express.
+  Future<dynamic> getRaw(String pathWithQuery) async {
+    final response = await _http.get(Uri.parse('$baseUrl$pathWithQuery'));
+    return _decode(response);
+  }
+
   Future<dynamic> post(String path, {Object? body}) async {
     final response = await _http.post(
       _uri(path),
