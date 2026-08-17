@@ -11,20 +11,25 @@ from helpers.db import (
 from api.models import Category, Product, Retailer, Store, User
 from typing import Optional, List, Dict
 from api.utils import get_db_handle
+
+
 router = APIRouter (
-    prefix = "/users",
-    tags = ["users"]
+    prefix = "/user",
+    tags = ["user"]
 )
 
 
-@router.get("/{user_id}/profile")
-def user_profile (user_id: str):
-	with get_db_handle() as conn:
-		return retrieve_user_profile(conn, user_id)
+@router.get("/{user_id}/profile", response_model=User)
+def get_user_profile (user_id: str):
+    with get_db_handle() as conn:
+        profile = retrieve_user_profile(conn, user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return profile 
 
 
 @router.get("/{user_id}/interests", response_model = List[Category])
-def user_interests(user_id: str):
+def get_user_interests(user_id: str):
     with get_db_handle() as conn:
         return retrieve_user_interests(conn, user_id)
 
