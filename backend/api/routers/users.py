@@ -4,6 +4,8 @@ from helpers.db import (
    retrieve_user_zipcode,
    retrieve_user_interests,
    retrieve_user_retailers,
+   follow_retailer,
+   unfollow_retailer,
    retrieve_watchlist,
    retrieve_search_history,
    upsert_watchlist_item,
@@ -51,6 +53,24 @@ def get_user_zipcode(user_id: str):
 def get_user_retailers(user_id: str):
     with get_db_handle() as conn:
         return retrieve_user_retailers(conn, user_id)
+
+
+@router.post("/{user_id}/retailers/{retailer_id}", status_code=201)
+def follow(user_id: str, retailer_id: str):
+    """Follow a retailer, so it shows on the maps screen and scopes the chips."""
+    with get_db_handle() as conn:
+        follow_retailer(conn, user_id, retailer_id)
+    return {"following": True}
+
+
+@router.delete("/{user_id}/retailers/{retailer_id}")
+def unfollow(user_id: str, retailer_id: str):
+    """Stop following a retailer."""
+    with get_db_handle() as conn:
+        removed = unfollow_retailer(conn, user_id, retailer_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Retailer was not followed")
+    return {"following": False}
 
 
 @router.get("/{user_id}/watchlist", response_model=List[Product])

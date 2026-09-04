@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:save_some_ui/models/models.dart';
 import 'package:save_some_ui/screens/account.dart';
 import 'package:save_some_ui/screens/history.dart';
+import 'package:save_some_ui/screens/product_detail.dart';
 import 'package:save_some_ui/screens/maps.dart';
 import 'package:save_some_ui/screens/products.dart';
 import 'package:save_some_ui/screens/submit_product.dart';
@@ -32,6 +33,8 @@ class _HomeContentState extends State<HomeContent> {
   void initState() {
     super.initState();
     _homeData = AppServices.instance.home.load(widget.userId);
+    // Load once here so every card in the app knows what's already tracked.
+    AppServices.instance.watchlist.load(widget.userId);
   }
 
   Future<void> _refresh() async {
@@ -110,7 +113,7 @@ class _HomeContentState extends State<HomeContent> {
                 for (final product in data.trending)
                   ProductCard(
                     product: product,
-                    onTap: () => _openHistory(product),
+                    onTap: () => _openProduct(product),
                   ),
             ],
           ),
@@ -119,12 +122,12 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  void _openHistory(Product product) {
+  void _openProduct(Product product) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => HistoryScreen(
+        builder: (_) => ProductDetailScreen(
           userId: widget.userId,
-          initialProduct: product,
+          product: product,
         ),
       ),
     );

@@ -77,13 +77,16 @@ class _Tile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
 
-    // Hue from a stable hash of the id. Saturation and lightness stay low so
-    // tiles read as a family with the cream page rather than as confetti.
-    final hue = (_hash(seed) % 360).toDouble();
-    final base = HSLColor.fromAHSL(1, hue, 0.32, isDark ? 0.26 : 0.88).toColor();
-    final tint = HSLColor.fromAHSL(1, (hue + 24) % 360, 0.36, isDark ? 0.19 : 0.80)
-        .toColor();
-    final ink = HSLColor.fromAHSL(1, hue, 0.45, isDark ? 0.78 : 0.34).toColor();
+    // A curated set of hues rather than the full wheel. Free hue rotation put a
+    // pink tile next to a green one and the list looked like confetti; these all
+    // sit in the violet-to-sand range the rest of the app occupies.
+    const hues = <double>[265, 250, 288, 218, 40, 22];
+    final hue = hues[_hash(seed) % hues.length];
+
+    final base = HSLColor.fromAHSL(1, hue, 0.30, isDark ? 0.26 : 0.90).toColor();
+    final tint =
+        HSLColor.fromAHSL(1, hue, 0.34, isDark ? 0.19 : 0.83).toColor();
+    final ink = HSLColor.fromAHSL(1, hue, 0.42, isDark ? 0.78 : 0.40).toColor();
 
     return Container(
       height: size,

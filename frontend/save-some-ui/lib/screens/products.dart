@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:save_some_ui/models/models.dart';
-import 'package:save_some_ui/screens/history.dart';
+import 'package:save_some_ui/screens/product_detail.dart';
 import 'package:save_some_ui/services/app_services.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/cards/product.dart';
@@ -74,9 +74,9 @@ class _ProductScreenState extends State<ProductScreen> {
   void _openProduct(Product product) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => HistoryScreen(
+        builder: (_) => ProductDetailScreen(
           userId: widget.userId,
-          initialProduct: product,
+          product: product,
         ),
       ),
     );

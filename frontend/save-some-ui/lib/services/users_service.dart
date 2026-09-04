@@ -36,6 +36,17 @@ class UsersService {
         .toList();
   }
 
+  /// POST /v1/user/{id}/retailers/{retailerId} — follow a retailer. Idempotent
+  /// server-side, so a double tap is harmless.
+  Future<void> followRetailer(String userId, String retailerId) async {
+    await _client.post('/v1/user/$userId/retailers/$retailerId');
+  }
+
+  /// DELETE /v1/user/{id}/retailers/{retailerId} — stop following.
+  Future<void> unfollowRetailer(String userId, String retailerId) async {
+    await _client.delete('/v1/user/$userId/retailers/$retailerId');
+  }
+
   /// GET /v1/user/{id}/zipcode — the geo anchor for nearby-store lookups when
   /// device location isn't available or permitted.
   Future<String?> fetchZipcode(String userId) async {

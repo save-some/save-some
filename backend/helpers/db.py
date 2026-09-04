@@ -406,6 +406,41 @@ def retrieve_user_retailers (conn, user_id: str) -> list:
 
 
 
+# Followed retailers
+
+def follow_retailer (conn, user_id: str, retailer_id: str) -> bool:
+    """
+    Mark a retailer as one the user cares about. Idempotent: the composite
+    primary key makes a repeat follow a no-op rather than an error.
+    """
+    query = """
+        INSERT INTO user_retailers (user_id, retailer_id)
+        VALUES (%s, %s)
+        ON CONFLICT (user_id, retailer_id) DO NOTHING
+        RETURNING user_id
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (user_id, retailer_id))
+        row = cur.fetchone()
+        conn.commit()
+    # None means it was already followed, which is still success.
+    return row is not None
+
+
+def unfollow_retailer (conn, user_id: str, retailer_id: str) -> bool:
+    """Stop following a retailer. Returns True if a row was removed."""
+    query = """
+        DELETE FROM user_retailers
+        WHERE user_id = %s AND retailer_id = %s
+        RETURNING user_id
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (user_id, retailer_id))
+        row = cur.fetchone()
+        conn.commit()
+    return row is not None
+
+
 # Watchlist
 
 def retrieve_watchlist(conn, user_id: str) -> list:

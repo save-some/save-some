@@ -34,6 +34,15 @@ class ProductsService {
     return products.map((p) => Product.fromJson(p as Map<String, dynamic>)).toList();
   }
 
+  /// GET /v1/products/{id}/offers — every retailer carrying this product at its
+  /// latest price, cheapest first. Backs the cross-retailer comparison.
+  Future<List<ProductOffer>> fetchOffers(String productId) async {
+    final json = await _client.get('/v1/products/$productId/offers');
+    return (json as List)
+        .map((o) => ProductOffer.fromJson(o as Map<String, dynamic>))
+        .toList();
+  }
+
   /// GET /v1/products/{id}/price-history — the series behind the price chart.
   ///
   /// The API returns newest-first; this reverses it so callers get chronological

@@ -1,30 +1,29 @@
 import 'package:flutter/material.dart';
 
 import 'package:save_some_ui/models/models.dart';
+import 'package:save_some_ui/screens/product_detail.dart';
 import 'package:save_some_ui/services/app_services.dart';
+import 'package:save_some_ui/state/recently_viewed.dart';
 import 'package:save_some_ui/theme/tokens.dart';
+import 'package:save_some_ui/util/format.dart';
 import 'package:save_some_ui/widgets/cards/product.dart';
-import 'package:save_some_ui/widgets/charts/price_sparkline.dart';
-import 'package:save_some_ui/widgets/common/primary_button.dart';
+import 'package:save_some_ui/widgets/common/app_card.dart';
 import 'package:save_some_ui/widgets/common/product_search_delegate.dart';
+import 'package:save_some_ui/widgets/common/product_thumb.dart';
 import 'package:save_some_ui/widgets/common/search_field.dart';
 import 'package:save_some_ui/widgets/common/section_header.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
 
-/// Product price history and past searches — the design's history frame.
+/// What this user has been looking at: products they've opened, products they're
+/// tracking, and the searches that got them there.
 ///
-/// Doubles as the product detail view: tapping a card anywhere in the app opens
-/// this with [initialProduct] set, which is why it takes an optional product
-/// rather than always starting from the search field.
+/// Previously this tab showed only a list of bare search strings unless a product
+/// had been passed in, so it read as empty. Now it leads with products — each with
+/// its image — which is what the design shows.
 class HistoryScreen extends StatefulWidget {
   final String userId;
-  final Product? initialProduct;
 
-  const HistoryScreen({
-    super.key,
-    required this.userId,
-    this.initialProduct,
-  });
+  const HistoryScreen({super.key, required this.userId});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -33,89 +32,100 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   final _services = AppServices.instance;
 
-  Product? _product;
-  Future<List<ProductPrice>>? _priceHistory;
   late Future<List<SearchHistoryEntry>> _searches;
-
-  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
     _searches = _services.users.fetchSearchHistory(widget.userId);
-    final initial = widget.initialProduct;
-    if (initial != null) _selectProduct(initial);
-  }
-
-  void _selectProduct(Product product) {
-    setState(() {
-      _product = product;
-      _priceHistory = _services.products.fetchPriceHistory(product.id);
-    });
   }
 
   Future<void> _refresh() async {
     final searches = _services.users.fetchSearchHistory(widget.userId);
     setState(() => _searches = searches);
-    await searches;
+    await Future.wait([
+      searches,
+      _services.watchlist.load(widget.userId),
+    ]);
   }
 
-  void _openSearch() {
+  void _openSearch({String? initialQuery}) {
     showSearch(
       context: context,
+      query: initialQuery ?? '',
       delegate: ProductSearchDelegate(
         productsService: _services.products,
         userId: widget.userId,
-        onSelect: _selectProduct,
+        onSelect: _openProduct,
       ),
     ).then((_) {
-      // Searching writes to search_history, so the list below is now stale.
+      // Submitting a search writes to search_history, so the list below is stale.
       if (mounted) _refresh();
     });
   }
 
-  Future<void> _saveProduct() async {
-    final product = _product;
-    if (product == null) return;
-
-    setState(() => _saving = true);
-    try {
-      await _services.users.addToWatchlist(widget.userId, product.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Tracking ${product.name}')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn\'t save that: $error')),
-      );
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+  void _openProduct(Product product) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProductDetailScreen(
+          userId: widget.userId,
+          product: product,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Pushed as a detail route (has an initial product) vs shown as a tab.
-    final isRoute = widget.initialProduct != null;
-
-    final body = RefreshIndicator(
+    return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
         padding: AppSpacing.pageAll,
         children: [
-          SearchField(hint: 'Search for products', onTap: _openSearch),
+          SearchField(
+            hint: 'Search for products',
+            onTap: () => _openSearch(),
+          ),
           const SizedBox(height: AppSpacing.xl),
-          if (_product != null) ...[
-            _ProductDetailCard(
-              product: _product!,
-              priceHistory: _priceHistory,
-              saving: _saving,
-              onSave: _saveProduct,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-          ],
+
+          // Recently viewed, with images — the products this tab is about.
+          ListenableBuilder(
+            listenable: RecentlyViewed.instance,
+            builder: (context, _) {
+              final recent = RecentlyViewed.instance.products;
+              if (recent.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SectionHeader('Recently viewed'),
+                  _RecentStrip(products: recent, onSelect: _openProduct),
+                  const SizedBox(height: AppSpacing.xl),
+                ],
+              );
+            },
+          ),
+
+          // Tracked products, so this tab is useful on a first visit too.
+          ListenableBuilder(
+            listenable: _services.watchlist,
+            builder: (context, _) {
+              final tracked = _services.watchlist.products;
+              if (tracked.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SectionHeader('Tracking'),
+                  for (final product in tracked)
+                    ProductCard(
+                      product: product,
+                      onTap: () => _openProduct(product),
+                    ),
+                  const SizedBox(height: AppSpacing.xl),
+                ],
+              );
+            },
+          ),
+
           const SectionHeader('Recent searches'),
           FutureBuilder<List<SearchHistoryEntry>>(
             future: _searches,
@@ -137,135 +147,80 @@ class _HistoryScreenState extends State<HistoryScreen> {
               return Column(
                 children: [
                   for (final entry in snapshot.data!)
-                    _SearchHistoryRow(entry: entry),
+                    _SearchHistoryRow(
+                      entry: entry,
+                      // Tapping a past search re-runs it, which is the only
+                      // reason to show it.
+                      onTap: () => _openSearch(initialQuery: entry.query),
+                    ),
                 ],
               );
             },
           ),
+          const SizedBox(height: AppSpacing.lg),
         ],
       ),
-    );
-
-    if (!isRoute) return body;
-    return Scaffold(
-      appBar: AppBar(title: Text(_product?.name ?? 'Price history')),
-      body: SafeArea(child: body),
     );
   }
 }
 
-/// The expanded product card from the design: retailer row, price chart,
-/// description, then Options and Save Product.
-class _ProductDetailCard extends StatelessWidget {
-  final Product product;
-  final Future<List<ProductPrice>>? priceHistory;
-  final bool saving;
-  final VoidCallback onSave;
+/// A horizontal strip of image-led product tiles. Horizontal because recency is
+/// browsable rather than something to read top to bottom, and it keeps the
+/// searches below on screen.
+class _RecentStrip extends StatelessWidget {
+  final List<Product> products;
+  final void Function(Product) onSelect;
 
-  const _ProductDetailCard({
-    required this.product,
-    required this.priceHistory,
-    required this.saving,
-    required this.onSave,
-  });
+  const _RecentStrip({required this.products, required this.onSelect});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    product.retailerName ?? product.brand ?? 'Product',
-                    style: theme.textTheme.titleSmall,
+    return SizedBox(
+      height: 168,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        itemCount: products.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (context, i) {
+          final product = products[i];
+          return SizedBox(
+            width: 132,
+            child: AppCard(
+              onTap: () => onSelect(product),
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: ProductThumb(
+                      seed: product.id,
+                      productName: product.name,
+                      imageUrl: product.imageUrl,
+                      size: 84,
+                    ),
                   ),
-                ),
-                if (product.price != null)
-                  PriceRow(
-                    price: product.price!,
-                    originalPrice: product.originalPrice,
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    product.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
                   ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            FutureBuilder<List<ProductPrice>>(
-              future: priceHistory,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return AppErrorState(
-                    message: 'Couldn\'t load price history.',
-                    error: snapshot.error,
-                  );
-                }
-                if (!snapshot.hasData) return const AppLoading();
-                return PriceSparkline(prices: snapshot.data!);
-              },
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text(product.name, style: theme.textTheme.titleMedium),
-            if (product.description != null &&
-                product.description!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                product.description!,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: scheme.onSurfaceVariant),
+                  const Spacer(),
+                  if (product.price != null)
+                    Text(
+                      formatUsd(product.price!),
+                      style: theme.textTheme.labelLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                ],
               ),
-            ],
-            const SizedBox(height: AppSpacing.lg),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              spacing: AppSpacing.sm,
-              children: [
-                SecondaryButton(
-                  label: 'Options',
-                  onPressed: () => _showOptions(context),
-                ),
-                AccentButton(
-                  label: 'Save Product',
-                  busy: saving,
-                  onPressed: onSave,
-                ),
-              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showOptions(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.notifications_outlined),
-              title: const Text('Set a price alert'),
-              // TODO: needs a target-price input; the watchlist endpoint already
-              // accepts target_price.
-              onTap: () => Navigator.of(context).pop(),
-            ),
-            ListTile(
-              leading: const Icon(Icons.open_in_new),
-              title: const Text('View at retailer'),
-              // TODO: retailer_products.product_url isn't returned by the
-              // products endpoints yet.
-              onTap: () => Navigator.of(context).pop(),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -273,31 +228,39 @@ class _ProductDetailCard extends StatelessWidget {
 
 class _SearchHistoryRow extends StatelessWidget {
   final SearchHistoryEntry entry;
+  final VoidCallback? onTap;
 
-  const _SearchHistoryRow({required this.entry});
+  const _SearchHistoryRow({required this.entry, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Card(
-        child: ListTile(
-          leading: Icon(Icons.history, color: scheme.onSurfaceVariant),
-          title: Text(entry.query),
-          subtitle: Text(_relative(entry.searchedAt)),
+      child: AppCard(
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.history, size: 20, color: scheme.onSurfaceVariant),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(entry.query, style: theme.textTheme.bodyLarge),
+            ),
+            Text(
+              formatRelative(entry.searchedAt),
+              style: theme.textTheme.labelSmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Icon(Icons.north_west, size: 16, color: scheme.onSurfaceVariant),
+          ],
         ),
       ),
     );
-  }
-
-  /// Coarse relative time. `intl` isn't a dependency and one date format doesn't
-  /// justify adding it.
-  static String _relative(DateTime when) {
-    final elapsed = DateTime.now().difference(when);
-    if (elapsed.inMinutes < 1) return 'just now';
-    if (elapsed.inMinutes < 60) return '${elapsed.inMinutes}m ago';
-    if (elapsed.inHours < 24) return '${elapsed.inHours}h ago';
-    return '${elapsed.inDays}d ago';
   }
 }
