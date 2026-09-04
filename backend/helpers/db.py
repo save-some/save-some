@@ -91,6 +91,36 @@ def retrieve_products_for_retailer (conn, retailer_id: str, limit: int = 50, off
         rows = cur.fetchall()
     return rows
 
+def retrieve_products_for_retailers (conn, retailer_ids: Optional[list] = None,
+                                     limit: int = 50, offset: int = 0) -> list:
+    """
+    Browse products across one or more retailers, retailer name attached.
+    retailer_ids=None (or empty) returns products across every retailer —
+    backs the Products page's default (no chips selected) view as well
+    as the multi-select retailer-chip filter.
+    """
+    query = """
+        SELECT p.*, rp.id AS retailer_product_id, rp.retailer_id,
+               r.name AS retailer_name
+        FROM retailer_products rp
+        JOIN products p ON p.id = rp.product_id
+        JOIN retailers r ON r.id = rp.retailer_id
+    """
+    params = []
+    if retailer_ids:
+        query += " WHERE rp.retailer_id = ANY(%s)"
+        params.append(retailer_ids)
+    query += " ORDER BY p.name LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+ 
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, tuple(params))
+        rows = cur.fetchall()
+    return rows
+ 
+ 
+
+
 
 def search_products_for_retailer (conn, retailer_id: str, search_query: str,
                                   limit: int = 25, offset: int = 0) -> list:
@@ -113,7 +143,7 @@ def search_products_for_retailer (conn, retailer_id: str, search_query: str,
     return rows
  
  
-def search_products (conn, search_query: str, limit: int = 25, offset: int = 0) -> list:
+def query_products (conn, search_query: str, limit: int = 25, offset: int = 0) -> list:
     """
     Search canonical products by name, across all retailers.
     Backs POST /v1/products/search.
@@ -130,31 +160,31 @@ def search_products (conn, search_query: str, limit: int = 25, offset: int = 0) 
     return rows
  
  
-def retrieve_trending_products (conn, limit: int = 20, days: int = 7) -> list:
-    """
-    Naive "trending" = products with the biggest recent price drop
-    (original_price -> price) among prices scraped in the last `days`.
-    This is a placeholder until there's a real recommendation engine —
-    it only needs product_prices.original_price to be populated.
-    """
-    query = """
-        SELECT p.*, pp.price, pp.original_price,
-               (pp.original_price - pp.price) AS price_drop,
-               rp.retailer_id
-        FROM product_prices pp
-        JOIN retailer_products rp ON rp.id = pp.retailer_product_id
-        JOIN products p ON p.id = rp.product_id
-        WHERE pp.scraped_at >= now() - (%s || ' days')::interval
-          AND pp.original_price IS NOT NULL
-          AND pp.original_price > pp.price
-        ORDER BY price_drop DESC
-        LIMIT %s
-    """
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(query, (days, limit))
-        rows = cur.fetchall()
-    return rows
- 
+def retrieve_trending_products (conn, limit: int = 20, days: int = 360) -> list:
+	"""
+	Naive "trending" = products with the biggest recent price drop
+	(original_price -> price) among prices scraped in the last `days`.
+	This is a placeholder until there's a real recommendation engine —
+	it only needs product_prices.original_price to be populated.
+	"""
+	query = """
+		SELECT p.*, pp.price, pp.original_price,
+			   COALESCE(pp.original_price - pp.price, 0) AS price_drop,
+			   rp.retailer_id, r.name AS retailer_name
+		FROM product_prices pp
+		JOIN retailer_products rp ON rp.id = pp.retailer_product_id
+		JOIN products p ON p.id = rp.product_id
+		JOIN retailers r ON r.id = rp.retailer_id
+		WHERE pp.scraped_at >= now() - (%s || ' days')::interval
+		ORDER BY price_drop DESC, pp.scraped_at DESC
+		LIMIT %s
+	"""
+
+	with conn.cursor(cursor_factory=RealDictCursor) as cur:
+		cur.execute(query, (days, limit))
+		rows = cur.fetchall()
+	return rows
+	 
 def retrieve_price_history (conn, product_id: str, retailer_id: str = None,
                             limit: int = 100) -> list:
     """
@@ -286,11 +316,15 @@ def retrieve_user_retailers (conn, user_id: str) -> list:
 
 # Watchlist
 
-def retrieve_watchlist (conn, user_id: str) -> list:
-    """All products a user is tracking, joined with product info."""
+def retrieve_watchlist(conn, user_id: str) -> list:
+    """All products a user is tracking, joined with product info. Column
+    names/aliases match the unified Product model shape (id not
+    product_id, tracked_at not added_at) so this can be returned as
+    List[Product] directly."""
     query = """
-        SELECT up.product_id, up.target_price, up.notes, up.added_at,
-               p.name, p.description, p.image_url, p.brand
+        SELECT p.id, p.name, p.description, p.image_url, p.upc, p.brand,
+               p.created_at, up.target_price, up.notes,
+               up.added_at AS tracked_at
         FROM user_products up
         JOIN products p ON p.id = up.product_id
         WHERE up.user_id = %s

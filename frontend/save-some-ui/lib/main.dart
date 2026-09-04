@@ -54,7 +54,7 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    return _isSignedIn ? const HomeScreen() : const SignInForm();
+    return _isSignedIn ?  HomeScreen(userId: Supabase.instance.client.auth.currentUser!.id) : const SignInForm();
   }
 }
 

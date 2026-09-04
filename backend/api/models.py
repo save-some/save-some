@@ -40,13 +40,23 @@ class Store(BaseModel):
 # Product related stuff ... 
 
 class Product (BaseModel):
-    id: UUID
-    name: str
-    description: Optional[str] = None
-    image_url: Optional[str] = None
-    upc: Optional[str] = None
-    brand: Optional[str] = None
-    created_at: datetime
+	id: UUID
+	name: str
+	description: Optional[str] = None
+	image_url: Optional[str] = None
+	upc: Optional[str] = None
+	brand: Optional[str] = None
+	created_at: datetime
+
+	# Optional context for a product
+	retailer_id: Optional[UUID] = None
+	retailer_name: Optional[str] = None
+	price: Optional[float] = None
+	original_price: Optional[float] = None
+	target_price: Optional[float] = None
+	notes: Optional[str] = None
+	tracked_at: Optional[datetime] = None
+
 
 
 class ProductPrice (BaseModel):

@@ -321,6 +321,7 @@ class _SignInFormState extends State<SignInForm> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 15),
                     child: ElevatedButton(
+                      
                       onPressed: () {
                         Navigator.push(
                           context,
@@ -345,14 +346,32 @@ class _SignInFormState extends State<SignInForm> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 15),
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (context) => const HomeScreen(),
-                          ),
-                        );
-                      },
+
+                      onPressed: () async {
+          try {
+            final response =
+                await Supabase.instance.client.auth.signInAnonymously();
+            final userId = response.user?.id;
+
+            if (userId == null) {
+              throw Exception('Anonymous sign-in returned no user');
+            }
+
+            if (!context.mounted) return; // widget could be gone by now
+
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (context) => HomeScreen(userId: userId),
+              ),
+            );
+          } catch (e) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Couldn\'t continue: $e')),
+            );
+          }
+        },
                       style: _lightBtn,
                       child: const Text('skip for now'),
                     ),
