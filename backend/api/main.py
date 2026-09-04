@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routers import categories, retailers, users, products
+from api.routers import categories, retailers, users, products, onboarding
 from api.models import Category, Product, Retailer, Store, User
 from datetime import datetime, timezone
 
@@ -24,7 +24,8 @@ start = datetime.now(timezone.utc)
 application.include_router(users.router, prefix = "/v1")
 application.include_router(categories.router, prefix = "/v1")
 application.include_router(retailers.router, prefix = "/v1")
-application.include_router(products.router, prefix = "/v1") 
+application.include_router(products.router, prefix = "/v1")
+application.include_router(onboarding.router, prefix = "/v1")
 
 @application.get ("/v1/")
 async def root ():

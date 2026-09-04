@@ -2,6 +2,7 @@ import 'package:save_some_ui/config/env.dart';
 import 'package:save_some_ui/state/watchlist_controller.dart';
 
 import 'api_client.dart';
+import 'categories_service.dart';
 import 'home_service.dart';
 import 'products_service.dart';
 import 'retailers_service.dart';
@@ -24,6 +25,7 @@ class AppServices {
   late final ApiClient client = ApiClient(baseUrl: Env.apiBaseUrl);
 
   late final UsersService users = UsersService(client);
+  late final CategoriesService categories = CategoriesService(client);
   late final ProductsService products = ProductsService(client);
   late final RetailersService retailers = RetailersService(client);
   late final HomeService home = HomeService(users, products);

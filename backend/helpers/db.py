@@ -406,6 +406,64 @@ def retrieve_user_retailers (conn, user_id: str) -> list:
 
 
 
+# Onboarding
+
+def complete_onboarding (conn, user_id: str, zipcode: str,
+                         retailer_ids: list, interest_ids: list,
+                         display_name: str = None) -> Optional[dict]:
+    """
+    Create or update a profile and replace the user's retailer and interest
+    picks, all in one transaction — a half-onboarded user (profile but no
+    interests) would render a home screen with empty sections and no way back.
+
+    Picks are replaced rather than merged, because this backs a form that shows
+    the current selection: unticking something has to actually remove it.
+
+    display_name is required non-null by the schema, so a placeholder derived
+    from the zipcode is used when the caller has nothing better. TODO: collect a
+    real name during onboarding.
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        try:
+            cur.execute(
+                """
+                INSERT INTO profiles (id, display_name, zipcode)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (id) DO UPDATE
+                    SET zipcode = EXCLUDED.zipcode,
+                        display_name = COALESCE(
+                            NULLIF(profiles.display_name, ''),
+                            EXCLUDED.display_name
+                        )
+                RETURNING *
+                """,
+                (user_id, display_name or "Shopper", zipcode),
+            )
+            profile = cur.fetchone()
+
+            cur.execute("DELETE FROM user_retailers WHERE user_id = %s", (user_id,))
+            if retailer_ids:
+                cur.executemany(
+                    "INSERT INTO user_retailers (user_id, retailer_id) VALUES (%s, %s)",
+                    [(user_id, rid) for rid in retailer_ids],
+                )
+
+            cur.execute("DELETE FROM user_interests WHERE user_id = %s", (user_id,))
+            if interest_ids:
+                cur.executemany(
+                    "INSERT INTO user_interests (user_id, category_id) VALUES (%s, %s)",
+                    [(user_id, cid) for cid in interest_ids],
+                )
+
+            conn.commit()
+        except Exception:
+            # Without this a failed pick insert would leave the profile written
+            # and the picks half-applied.
+            conn.rollback()
+            raise
+    return dict(profile) if profile else None
+
+
 # Followed retailers
 
 def follow_retailer (conn, user_id: str, retailer_id: str) -> bool:

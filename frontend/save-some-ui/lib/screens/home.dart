@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:save_some_ui/models/models.dart';
 import 'package:save_some_ui/screens/account.dart';
 import 'package:save_some_ui/screens/history.dart';
+import 'package:save_some_ui/screens/onboarding.dart';
 import 'package:save_some_ui/screens/product_detail.dart';
 import 'package:save_some_ui/screens/maps.dart';
 import 'package:save_some_ui/screens/products.dart';
@@ -12,6 +13,7 @@ import 'package:save_some_ui/services/home_service.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/cards/product.dart';
 import 'package:save_some_ui/widgets/common/chip_group.dart';
+import 'package:save_some_ui/widgets/common/primary_button.dart';
 import 'package:save_some_ui/widgets/common/section_header.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
 import 'package:save_some_ui/widgets/nav/app_nav_bar.dart';
@@ -72,7 +74,12 @@ class _HomeContentState extends State<HomeContent> {
         final data = snapshot.data!;
         // No profile row yet (e.g. anonymous/new user who hasn't onboarded) —
         // say so rather than rendering a broken page.
-        if (data.profile == null) return const _NeedsOnboardingState();
+        if (data.profile == null) {
+          return _NeedsOnboardingState(
+            userId: widget.userId,
+            onComplete: _refresh,
+          );
+        }
         final profile = data.profile!;
 
         return RefreshIndicator(
@@ -134,17 +141,56 @@ class _HomeContentState extends State<HomeContent> {
   }
 }
 
+/// Shown when there's no profiles row yet. Offers a way forward instead of just
+/// stating the problem, which is all it used to do.
 class _NeedsOnboardingState extends StatelessWidget {
-  const _NeedsOnboardingState();
+  final String userId;
+  final VoidCallback onComplete;
+
+  const _NeedsOnboardingState({required this.userId, required this.onComplete});
 
   @override
   Widget build(BuildContext context) {
-    // TODO: replace with a push into the onboarding flow once it exists as a
-    // route. The backend models OnboardingRequest but exposes no endpoint yet.
-    return const Center(
-      child: AppEmptyState(
-        message: "Looks like you haven't finished setting up your account yet.",
-        icon: Icons.person_outline,
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.waving_hand_outlined,
+              size: 40,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text('Let\'s get you set up', style: theme.textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Tell us your ZIP code and which stores you shop at, and we\'ll '
+              'start tracking prices near you.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            PrimaryButton(
+              label: 'Get started',
+              icon: Icons.arrow_forward,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => OnboardingScreen(
+                    userId: userId,
+                    onComplete: () {
+                      Navigator.of(context).pop();
+                      onComplete();
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

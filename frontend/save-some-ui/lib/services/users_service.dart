@@ -36,6 +36,22 @@ class UsersService {
         .toList();
   }
 
+  /// POST /v1/onboarding/{id} — create the profile and replace the user's
+  /// retailer and interest picks in one call.
+  Future<User> completeOnboarding(
+    String userId, {
+    required String zipcode,
+    required Set<String> retailerIds,
+    required Set<String> interestIds,
+  }) async {
+    final json = await _client.post('/v1/onboarding/$userId', body: {
+      'zipcode': zipcode,
+      'retailers': retailerIds.toList(),
+      'interests': interestIds.toList(),
+    });
+    return User.fromJson(json as Map<String, dynamic>);
+  }
+
   /// POST /v1/user/{id}/retailers/{retailerId} — follow a retailer. Idempotent
   /// server-side, so a double tap is harmless.
   Future<void> followRetailer(String userId, String retailerId) async {
