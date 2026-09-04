@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
-import 'package:save_some_ui/config/env.dart';
 import 'package:save_some_ui/models/models.dart';
-import 'package:save_some_ui/services/api_client.dart';
-import 'package:save_some_ui/services/products_service.dart';
-import 'package:save_some_ui/services/retailers_service.dart';
-import 'package:save_some_ui/services/users_service.dart';
+import 'package:save_some_ui/screens/history.dart';
+import 'package:save_some_ui/services/app_services.dart';
+import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/cards/product.dart';
+import 'package:save_some_ui/widgets/common/chip_group.dart';
 import 'package:save_some_ui/widgets/common/product_search_delegate.dart';
+import 'package:save_some_ui/widgets/common/search_field.dart';
+import 'package:save_some_ui/widgets/common/section_header.dart';
+import 'package:save_some_ui/widgets/common/state_views.dart';
 
+/// Browse and search products, filtered by retailer chips.
 class ProductScreen extends StatefulWidget {
   final String userId;
   const ProductScreen({super.key, required this.userId});
@@ -18,9 +21,7 @@ class ProductScreen extends StatefulWidget {
 }
 
 class _ProductScreenState extends State<ProductScreen> {
-  late final RetailersService _retailersService;
-  late final ProductsService _productsService;
-  late final UsersService _usersService;
+  final _services = AppServices.instance;
 
   late Future<List<Retailer>> _retailers;
   late Future<List<Product>> _watchlist;
@@ -31,157 +32,154 @@ class _ProductScreenState extends State<ProductScreen> {
   @override
   void initState() {
     super.initState();
-    // TODO: same as home.dart — this should come from one shared
-    // ApiClient injected higher up, not constructed per screen.
-    final client = ApiClient(baseUrl: Env.apiBaseUrl);
-    _retailersService = RetailersService(client);
-    _productsService = ProductsService(client);
-    _usersService = UsersService(client);
-
-    _retailers = _retailersService.fetchAll();
-    _watchlist = _usersService.fetchWatchlist(widget.userId);
-    _browseProducts = _retailersService.fetchProducts();
+    _retailers = _services.retailers.fetchAll();
+    _watchlist = _services.users.fetchWatchlist(widget.userId);
+    _browseProducts = _services.retailers.fetchProducts();
   }
 
   void _toggleRetailer(String retailerId) {
     setState(() {
-      if (_selectedRetailerIds.contains(retailerId)) {
-        _selectedRetailerIds.remove(retailerId);
-      } else {
+      if (!_selectedRetailerIds.remove(retailerId)) {
         _selectedRetailerIds.add(retailerId);
       }
-      _browseProducts = _retailersService.fetchProducts(
-        retailerIds: _selectedRetailerIds.isEmpty ? null : _selectedRetailerIds,
+      _browseProducts = _services.retailers.fetchProducts(
+        retailerIds:
+            _selectedRetailerIds.isEmpty ? null : _selectedRetailerIds,
       );
     });
   }
 
+  Future<void> _refresh() async {
+    setState(() {
+      _retailers = _services.retailers.fetchAll();
+      _watchlist = _services.users.fetchWatchlist(widget.userId);
+      _browseProducts = _services.retailers.fetchProducts(
+        retailerIds:
+            _selectedRetailerIds.isEmpty ? null : _selectedRetailerIds,
+      );
+    });
+    await Future.wait([_retailers, _watchlist, _browseProducts]);
+  }
+
+  void _openSearch() {
+    showSearch(
+      context: context,
+      delegate: ProductSearchDelegate(
+        productsService: _services.products,
+        userId: widget.userId,
+      ),
+    );
+  }
+
+  void _openProduct(Product product) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => HistoryScreen(
+          userId: widget.userId,
+          initialProduct: product,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
+    return RefreshIndicator(
+      onRefresh: _refresh,
       child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: AppSpacing.pageAll,
         children: [
-          _SearchBar(productsService: _productsService),
-          const SizedBox(height: 24),
-          Text(
-            'Retailers',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
+          SearchField(hint: 'Search for products', onTap: _openSearch),
+          const SizedBox(height: AppSpacing.xl),
+          const SectionHeader('Retailers'),
           FutureBuilder<List<Retailer>>(
             future: _retailers,
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const SizedBox(
-                  height: 32,
-                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              if (snapshot.hasError) {
+                return AppErrorState(
+                  message: 'Couldn\'t load retailers.',
+                  error: snapshot.error,
+                  onRetry: _refresh,
                 );
               }
+              if (!snapshot.hasData) return const AppLoading(compact: true);
               if (snapshot.data!.isEmpty) {
-                return Text('No retailers yet', style: TextStyle(color: Colors.grey[500]));
+                return const AppEmptyState(message: 'No retailers yet');
               }
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: snapshot.data!.map((r) {
-                  final selected = _selectedRetailerIds.contains(r.id);
-                  return FilterChip(
-                    label: Text(r.name),
-                    selected: selected,
-                    onSelected: (_) => _toggleRetailer(r.id),
-                    backgroundColor: Colors.grey[100],
-                    selectedColor: Colors.deepPurple[100],
-                  );
-                }).toList(),
+              return FilterChipGroup(
+                options: [
+                  for (final r in snapshot.data!) (id: r.id, label: r.name),
+                ],
+                selectedIds: _selectedRetailerIds,
+                onToggle: _toggleRetailer,
               );
             },
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Your Products',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.xl),
+          const SectionHeader('Your Products'),
           FutureBuilder<List<Product>>(
             future: _watchlist,
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+              if (snapshot.hasError) {
+                return AppErrorState(
+                  message: 'Couldn\'t load your tracked products.',
+                  error: snapshot.error,
+                  onRetry: _refresh,
+                );
               }
+              if (!snapshot.hasData) return const AppLoading(compact: true);
               if (snapshot.data!.isEmpty) {
-                return Text('Nothing tracked yet', style: TextStyle(color: Colors.grey[500]));
+                return const AppEmptyState(
+                  message: 'Nothing tracked yet',
+                  icon: Icons.bookmark_border,
+                );
               }
               return Column(
-                children: snapshot.data!
-                    .map((w) => ProductCard(product: w))
-                    .toList(),
+                children: [
+                  for (final product in snapshot.data!)
+                    ProductCard(
+                      product: product,
+                      onTap: () => _openProduct(product),
+                    ),
+                ],
               );
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.xl),
+          SectionHeader(
+            _selectedRetailerIds.isEmpty
+                ? 'Browse all retailers'
+                : 'Browse ${_selectedRetailerIds.length} selected',
+          ),
           FutureBuilder<List<Product>>(
             future: _browseProducts,
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
               if (snapshot.hasError) {
-                return Text('Couldn\'t load products: ${snapshot.error}');
+                return AppErrorState(
+                  message: 'Couldn\'t load products.',
+                  error: snapshot.error,
+                  onRetry: _refresh,
+                );
               }
+              if (!snapshot.hasData) return const AppLoading();
               if (snapshot.data!.isEmpty) {
-                return Text('No products found', style: TextStyle(color: Colors.grey[500]));
+                return const AppEmptyState(
+                  message: 'No products found',
+                  icon: Icons.search_off,
+                );
               }
               return Column(
-                children: snapshot.data!
-                    .map((p) => ProductCard(product: p))
-                    .toList(),
+                children: [
+                  for (final product in snapshot.data!)
+                    ProductCard(
+                      product: product,
+                      onTap: () => _openProduct(product),
+                    ),
+                ],
               );
             },
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Tappable bar that looks like a search field but opens the full-screen
-/// search modal (showSearch) rather than being a real inline TextField —
-/// keeps typing/debounce/results entirely inside ProductSearchDelegate.
-class _SearchBar extends StatelessWidget {
-  final ProductsService productsService;
-  const _SearchBar({required this.productsService});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.grey[100],
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => showSearch(
-          context: context,
-          delegate: ProductSearchDelegate(productsService: productsService),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              const Icon(Icons.menu, color: Colors.grey),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text('Search for products', style: TextStyle(color: Colors.grey[600])),
-              ),
-              const Icon(Icons.search, color: Colors.grey),
-            ],
-          ),
-        ),
       ),
     );
   }

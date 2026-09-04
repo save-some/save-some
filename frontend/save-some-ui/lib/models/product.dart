@@ -1,23 +1,14 @@
- 
-DateTime _parseDate(dynamic value) => DateTime.parse(value as String);
- 
-double? _parseDoubleOrNull(dynamic value) =>
-    value == null ? null : (value as num).toDouble();
- 
-List<T> _parseList<T>(
-  dynamic value,
-  T Function(Map<String, dynamic>) fromJson,
-) {
-  if (value == null) return [];
-  return (value as List)
-      .map((item) => fromJson(item as Map<String, dynamic>))
-      .toList();
-}
- 
- 
+import 'json.dart';
+
 // ---- Product ----
-// GET /v1/products/trending, POST /v1/products/search, etc.
- 
+// GET /v1/products/trending, GET /v1/products, POST /v1/products/search,
+// GET /v1/user/{id}/watchlist.
+//
+// One model covers all four because the backend returns the same product row
+// with different optional context attached: browse and trending add the
+// retailer and current price, watchlist adds target_price/notes/tracked_at.
+// ProductCard keys its layout off which of those are present.
+
 class Product {
   final String id;
   final String name;
@@ -26,7 +17,7 @@ class Product {
   final String? upc;
   final String? brand;
   final DateTime createdAt;
- 
+
   final String? retailerId;
   final String? retailerName;
   final double? price;
@@ -34,7 +25,7 @@ class Product {
   final double? targetPrice;
   final String? notes;
   final DateTime? trackedAt;
- 
+
   Product({
     required this.id,
     required this.name,
@@ -51,7 +42,11 @@ class Product {
     this.notes,
     this.trackedAt,
   });
- 
+
+  /// True when the current price is below the recorded original — drives the
+  /// struck-through original price in the UI.
+  bool get isDiscounted => originalPrice != null && price != null && originalPrice! > price!;
+
   factory Product.fromJson(Map<String, dynamic> json) => Product(
         id: json['id'] as String,
         name: json['name'] as String,
@@ -59,18 +54,17 @@ class Product {
         imageUrl: json['image_url'] as String?,
         upc: json['upc'] as String?,
         brand: json['brand'] as String?,
-        createdAt: _parseDate(json['created_at']),
+        createdAt: parseDate(json['created_at']),
         retailerId: json['retailer_id'] as String?,
         retailerName: json['retailer_name'] as String?,
-        price: _parseDoubleOrNull(json['price']),
-        originalPrice: _parseDoubleOrNull(json['original_price']),
-        targetPrice: _parseDoubleOrNull(json['target_price']),
+        price: parseDoubleOrNull(json['price']),
+        originalPrice: parseDoubleOrNull(json['original_price']),
+        targetPrice: parseDoubleOrNull(json['target_price']),
         notes: json['notes'] as String?,
-        trackedAt: json['tracked_at'] == null
-            ? null
-            : _parseDate(json['tracked_at']),
+        trackedAt:
+            json['tracked_at'] == null ? null : parseDate(json['tracked_at']),
       );
- 
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
@@ -88,4 +82,3 @@ class Product {
         'tracked_at': trackedAt?.toIso8601String(),
       };
 }
-

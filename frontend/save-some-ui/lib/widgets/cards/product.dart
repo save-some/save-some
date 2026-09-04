@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+
 import 'package:save_some_ui/models/models.dart';
+import 'package:save_some_ui/theme/tokens.dart';
+import 'package:save_some_ui/widgets/common/avatar_badge.dart';
 
 /// One horizontal product card, used everywhere a Product is shown —
 /// Home's trending list, the Products page's browse list and "Your
@@ -16,101 +19,112 @@ import 'package:save_some_ui/models/models.dart';
 ///     threshold instead
 class ProductCard extends StatelessWidget {
   final Product product;
-  const ProductCard({super.key, required this.product});
+
+  /// Tapping the card, e.g. to open price history.
+  final VoidCallback? onTap;
+
+  const ProductCard({super.key, required this.product, this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     final hasRetailer = (product.retailerName?.isNotEmpty ?? false);
     final headline = hasRetailer ? product.retailerName! : product.name;
     final subtitle = hasRetailer ? product.name : product.brand;
-    final avatarLetter = headline.isNotEmpty ? headline[0] : '?';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 0,
-      color: Colors.grey[100],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.deepPurple[100],
-              child: Text(avatarLetter, style: const TextStyle(color: Colors.deepPurple)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    headline,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Card(
+        child: InkWell(
+          borderRadius: AppRadius.lgAll,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              children: [
+                AvatarBadge(source: headline),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        headline,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      if (subtitle != null && subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                      ],
+                      if (product.price != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        PriceRow(
+                          price: product.price!,
+                          originalPrice: product.originalPrice,
+                        ),
+                      ] else if (product.targetPrice != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          'Alert below \$${product.targetPrice!.toStringAsFixed(2)}',
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: scheme.primary),
+                        ),
+                      ],
+                    ],
                   ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[700]),
-                    ),
-                  ],
-                  if (product.price != null) ...[
-                    const SizedBox(height: 4),
-                    _PriceRow(price: product.price!, originalPrice: product.originalPrice),
-                  ] else if (product.targetPrice != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Alert below \$${product.targetPrice!.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.deepPurple, fontSize: 12),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (product.imageUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  product.imageUrl!,
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported),
                 ),
-              ),
-          ],
+                const SizedBox(width: AppSpacing.md),
+                // Always present, matching the design's neutral block. Renders
+                // the real image when a product has one.
+                ThumbPlaceholder(imageUrl: product.imageUrl),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _PriceRow extends StatelessWidget {
+/// Current price, with the pre-discount price struck through beside it.
+class PriceRow extends StatelessWidget {
   final double price;
   final double? originalPrice;
-  const _PriceRow({required this.price, this.originalPrice});
+
+  const PriceRow({super.key, required this.price, this.originalPrice});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final isDiscounted = originalPrice != null && originalPrice! > price;
+
     return Row(
       children: [
         Text(
           '\$${price.toStringAsFixed(2)}',
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
         if (isDiscounted) ...[
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpacing.sm),
           Text(
             '\$${originalPrice!.toStringAsFixed(2)}',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[500],
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
               decoration: TextDecoration.lineThrough,
+              decorationColor: scheme.onSurfaceVariant,
             ),
           ),
         ],
