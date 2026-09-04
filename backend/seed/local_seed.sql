@@ -74,10 +74,18 @@ INSERT INTO user_retailers (user_id, retailer_id) VALUES
   ('00000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-000000000001');
 
 -- ---------------------------------------------------------
--- Products. image_url is deliberately NULL: the design shows a neutral
--- placeholder block in the card's trailing slot rather than product
--- photography, and NULL also keeps the web build free of cross-origin
--- image failures.
+-- Products.
+--
+-- Two carry a real image_url and the rest are NULL, on purpose. Wikimedia
+-- Commons is the only image source reachable here that serves
+-- Access-Control-Allow-Origin (retailer CDNs and favicon services don't, so the
+-- web build can't draw them), and it only had usable product shots for the
+-- ThinkPad and the mouse — its best "Samsung TV" match was a photo of a shop
+-- display. Rather than attach obviously wrong photography, the others fall back
+-- to the designed tile in widgets/common/product_thumb.dart.
+--
+-- That mix is also what production looks like: a real photo when a scrape
+-- yielded one, a tile when it didn't.
 -- ---------------------------------------------------------
 
 INSERT INTO products (id, name, description, image_url, brand, upc) VALUES
@@ -89,7 +97,8 @@ INSERT INTO products (id, name, description, image_url, brand, upc) VALUES
   ('22222222-2222-4222-8222-000000000002',
    'Lenovo Thinkpad T470',
    'Lenovo ThinkPad T470 14" business laptop, Intel Core i5, 16GB RAM, 512GB SSD, refurbished.',
-   NULL, 'Lenovo', '192940112233'),
+   'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Lenovo_ThinkPad_T460.png/500px-Lenovo_ThinkPad_T460.png',
+   'Lenovo', '192940112233'),
 
   ('22222222-2222-4222-8222-000000000003',
    'iPhone Repair Kit',
@@ -110,7 +119,8 @@ INSERT INTO products (id, name, description, image_url, brand, upc) VALUES
   ('22222222-2222-4222-8222-000000000006',
    'Logitech G705 Wireless Gaming Mouse',
    'Logitech G705 Wireless Gaming Mouse, Customizable LIGHTSYNC RGB Lighting, Lightspeed Wireless, Bluetooth Connectivity, Lightweight, PC/Mac/Laptop',
-   NULL, 'Logitech', '097855167729');
+   'https://upload.wikimedia.org/wikipedia/commons/5/5a/Logitech_MX518_Gaming_Mouse_%284777334208%29.jpg',
+   'Logitech', '097855167729');
 
 -- ---------------------------------------------------------
 -- Retailer/product pairings, matching which chain the design shows each
