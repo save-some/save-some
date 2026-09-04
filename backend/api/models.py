@@ -115,6 +115,25 @@ class SearchHistoryEntry(BaseModel):
     searched_at: datetime
 
 
+# Comparison stuff ...
+
+class ProductOffer (BaseModel):
+    """
+    One retailer's current offer for a product, for the cross-retailer
+    comparison. price is nullable: a retailer can stock a product with no price
+    observation yet, and the UI says "price unknown" rather than hiding it.
+    """
+    retailer_id: UUID
+    retailer_name: str
+    website: Optional[str] = None
+    retailer_product_id: UUID
+    product_url: Optional[str] = None
+    price: Optional[float] = None
+    original_price: Optional[float] = None
+    in_stock: Optional[bool] = None
+    scraped_at: Optional[datetime] = None
+
+
 # Watchlist stuff ...
 
 class WatchlistItemRequest(BaseModel):

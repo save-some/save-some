@@ -5,6 +5,7 @@ from helpers.db import (
     retrieve_products_for_retailer, 
     retrieve_products_for_retailers,
     retrieve_price_history,
+    retrieve_product_offers,
     retrieve_trending_products,
     retrieve_watchlist,
     search_products_for_retailer,
@@ -12,8 +13,8 @@ from helpers.db import (
     log_search,
 )
 from api.models import (
-    Category, Product, Retailer, Store, User, 
-    ProductSearchRequest, ProductSearchResponse, ProductPrice
+    Category, Product, Retailer, Store, User,
+    ProductSearchRequest, ProductSearchResponse, ProductPrice, ProductOffer
 )
 from typing import Optional, List, Dict
 from api.utils import get_db_handle
@@ -59,6 +60,16 @@ def search_products(body: ProductSearchRequest, user_id: Optional[str] = None):
             log_search(conn, user_id, body.query)
     return {"products": rows}
  
+
+@router.get("/{product_id}/offers", response_model = List[ProductOffer])
+def product_offers(product_id: str):
+    """
+    Every retailer carrying this product at its latest price, cheapest first.
+    Backs the "also available at" comparison.
+    """
+    with get_db_handle() as conn:
+        return retrieve_product_offers(conn, product_id)
+
 
 @router.get("/{product_id}/price-history", response_model = List[ProductPrice])
 def product_price_history(

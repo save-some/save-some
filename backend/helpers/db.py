@@ -3,6 +3,41 @@ from psycopg2.extras import RealDictCursor
 from typing import Optional
 
 
+# product_prices is append-only, so "the price" always means the most recent
+# observation. These lateral joins supply it; without them every product endpoint
+# returned price: null and the UI had nothing to render.
+#
+# LATERAL ... LIMIT 1 rather than a GROUP BY because we need whole rows (price
+# and original_price together), and it uses the existing
+# product_prices(retailer_product_id) and (scraped_at) indexes.
+
+# For queries that already have a retailer_products row in scope, aliased `rp`.
+_LATEST_PRICE_FOR_RP = """
+        LEFT JOIN LATERAL (
+            SELECT pp.price, pp.original_price, pp.in_stock, pp.scraped_at
+            FROM product_prices pp
+            WHERE pp.retailer_product_id = rp.id
+            ORDER BY pp.scraped_at DESC
+            LIMIT 1
+        ) latest ON true
+"""
+
+# For queries that only have a canonical product in scope, aliased `p`: takes the
+# most recent observation across every retailer carrying it.
+_LATEST_PRICE_FOR_PRODUCT = """
+        LEFT JOIN LATERAL (
+            SELECT pp.price, pp.original_price, pp.in_stock, pp.scraped_at
+            FROM retailer_products rp2
+            JOIN product_prices pp ON pp.retailer_product_id = rp2.id
+            WHERE rp2.product_id = p.id
+            ORDER BY pp.scraped_at DESC
+            LIMIT 1
+        ) latest ON true
+"""
+
+_LATEST_PRICE_COLUMNS = "latest.price, latest.original_price, latest.in_stock"
+
+
 # Retailers
 
 def retrieve_all_retailers (conn) -> list:
@@ -78,12 +113,16 @@ def retrieve_best_match_from_products (conn, query: str, threshold: float = 0.3)
 
 def retrieve_products_for_retailer (conn, retailer_id: str, limit: int = 50, offset: int = 0) -> list:
     """Canonical products offered by a specific retailer, with retailer-specific data attached."""
-    query = """
+    query = f"""
         SELECT p.*, rp.id AS retailer_product_id, rp.external_id,
-               rp.product_url, rp.image_url AS retailer_image_url
+               rp.product_url, rp.image_url AS retailer_image_url,
+               r.name AS retailer_name, {_LATEST_PRICE_COLUMNS}
         FROM retailer_products rp
         JOIN products p ON p.id = rp.product_id
+        JOIN retailers r ON r.id = rp.retailer_id
+        {_LATEST_PRICE_FOR_RP}
         WHERE rp.retailer_id = %s
+        ORDER BY p.name
         LIMIT %s OFFSET %s
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -99,12 +138,13 @@ def retrieve_products_for_retailers (conn, retailer_ids: Optional[list] = None,
     backs the Products page's default (no chips selected) view as well
     as the multi-select retailer-chip filter.
     """
-    query = """
+    query = f"""
         SELECT p.*, rp.id AS retailer_product_id, rp.retailer_id,
-               r.name AS retailer_name
+               r.name AS retailer_name, {_LATEST_PRICE_COLUMNS}
         FROM retailer_products rp
         JOIN products p ON p.id = rp.product_id
         JOIN retailers r ON r.id = rp.retailer_id
+        {_LATEST_PRICE_FOR_RP}
     """
     params = []
     if retailer_ids:
@@ -128,11 +168,14 @@ def search_products_for_retailer (conn, retailer_id: str, search_query: str,
     Search a specific retailer's products by name. Used to back the
     "search within a retailer" flow on the Products page.
     """
-    query = """
+    query = f"""
         SELECT p.*, rp.id AS retailer_product_id, rp.external_id,
-               rp.product_url, rp.image_url AS retailer_image_url
+               rp.product_url, rp.image_url AS retailer_image_url,
+               r.name AS retailer_name, {_LATEST_PRICE_COLUMNS}
         FROM retailer_products rp
         JOIN products p ON p.id = rp.product_id
+        JOIN retailers r ON r.id = rp.retailer_id
+        {_LATEST_PRICE_FOR_RP}
         WHERE rp.retailer_id = %s AND p.name ILIKE %s
         ORDER BY p.name
         LIMIT %s OFFSET %s
@@ -148,10 +191,12 @@ def query_products (conn, search_query: str, limit: int = 25, offset: int = 0) -
     Search canonical products by name, across all retailers.
     Backs POST /v1/products/search.
     """
-    query = """
-        SELECT * FROM products
-        WHERE name ILIKE %s
-        ORDER BY name
+    query = f"""
+        SELECT p.*, {_LATEST_PRICE_COLUMNS}
+        FROM products p
+        {_LATEST_PRICE_FOR_PRODUCT}
+        WHERE p.name ILIKE %s
+        ORDER BY p.name
         LIMIT %s OFFSET %s
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -194,6 +239,41 @@ def retrieve_trending_products (conn, limit: int = 20, days: int = 360) -> list:
 		rows = cur.fetchall()
 	return rows
 	 
+def retrieve_product_offers (conn, product_id: str) -> list:
+    """
+    Every retailer carrying a product, at its latest price, cheapest first.
+
+    This is the comparison the whole app exists for — "compare the same products
+    across inventories" — and nothing surfaced it before. Backs
+    GET /v1/products/{uuid}/offers.
+
+    Retailers with no recorded price still come back, ordered last, so the UI can
+    show "price unknown" rather than pretending the retailer doesn't stock it.
+    """
+    query = """
+        SELECT DISTINCT ON (rp.retailer_id)
+               rp.retailer_id, r.name AS retailer_name, r.website,
+               rp.id AS retailer_product_id, rp.product_url,
+               pp.price, pp.original_price, pp.in_stock, pp.scraped_at
+        FROM retailer_products rp
+        JOIN retailers r ON r.id = rp.retailer_id
+        LEFT JOIN product_prices pp ON pp.retailer_product_id = rp.id
+        WHERE rp.product_id = %s
+        -- DISTINCT ON needs retailer_id to lead; scraped_at DESC then picks that
+        -- retailer's most recent observation.
+        ORDER BY rp.retailer_id, pp.scraped_at DESC NULLS LAST
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (product_id,))
+        rows = cur.fetchall()
+    # Cheapest first, unpriced last. Done here rather than in SQL because
+    # DISTINCT ON dictates the ORDER BY above.
+    return sorted(
+        rows,
+        key=lambda row: (row["price"] is None, row["price"] or 0),
+    )
+
+
 def retrieve_price_history (conn, product_id: str, retailer_id: str = None,
                             limit: int = 100) -> list:
     """
@@ -333,12 +413,13 @@ def retrieve_watchlist(conn, user_id: str) -> list:
     names/aliases match the unified Product model shape (id not
     product_id, tracked_at not added_at) so this can be returned as
     List[Product] directly."""
-    query = """
+    query = f"""
         SELECT p.id, p.name, p.description, p.image_url, p.upc, p.brand,
                p.created_at, up.target_price, up.notes,
-               up.added_at AS tracked_at
+               up.added_at AS tracked_at, {_LATEST_PRICE_COLUMNS}
         FROM user_products up
         JOIN products p ON p.id = up.product_id
+        {_LATEST_PRICE_FOR_PRODUCT}
         WHERE up.user_id = %s
         ORDER BY up.added_at DESC
     """
