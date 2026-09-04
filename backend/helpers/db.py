@@ -148,7 +148,11 @@ def retrieve_products_for_retailers (conn, retailer_ids: Optional[list] = None,
     """
     params = []
     if retailer_ids:
-        query += " WHERE rp.retailer_id = ANY(%s)"
+        # ::uuid[] is required. psycopg2 adapts a Python list of strings to
+        # text[], and Postgres has no uuid = text operator, so the unqualified
+        # form raised UndefinedFunction — every retailer-filtered browse and the
+        # products chips on the Products page were failing with a 500.
+        query += " WHERE rp.retailer_id = ANY(%s::uuid[])"
         params.append(retailer_ids)
     query += " ORDER BY p.name LIMIT %s OFFSET %s"
     params.extend([limit, offset])
@@ -344,7 +348,8 @@ def retrieve_nearby_stores (conn, lat: float, lng: float,
     params = [lat, lng, lat, radius_miles]
 
     if retailer_ids:
-        query += " AND retailer_id = ANY(%s)"
+        # Same uuid = text problem as the product browse above.
+        query += " AND retailer_id = ANY(%s::uuid[])"
         params.append(retailer_ids)
 
     query += " ORDER BY distance_miles ASC"
