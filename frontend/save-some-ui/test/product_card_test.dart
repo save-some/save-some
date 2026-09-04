@@ -88,16 +88,33 @@ void main() {
       product: product(targetPrice: 450),
     )));
 
-    expect(find.text('Alert below \$450.00'), findsOneWidget);
+    expect(find.text('alert \$450.00'), findsOneWidget);
   });
 
-  testWidgets('a price wins over a target price', (tester) async {
+  testWidgets('a tracked product shows both its price and its alert',
+      (tester) async {
+    // Previously the alert replaced the price, which is why watchlist rows
+    // looked priceless.
     await tester.pumpWidget(wrapped(ProductCard(
       product: product(price: 497.99, targetPrice: 450),
     )));
 
     expect(find.text('\$497.99'), findsOneWidget);
-    expect(find.text('Alert below \$450.00'), findsNothing);
+    expect(find.text('alert \$450.00'), findsOneWidget);
+  });
+
+  testWidgets('a discount also shows what you save', (tester) async {
+    await tester.pumpWidget(wrapped(ProductCard(
+      product: product(price: 497.99, originalPrice: 649.99),
+    )));
+    expect(find.text('save \$152.00'), findsOneWidget);
+  });
+
+  testWidgets('thousands are grouped', (tester) async {
+    await tester.pumpWidget(wrapped(ProductCard(
+      product: product(price: 1299),
+    )));
+    expect(find.text('\$1,299.00'), findsOneWidget);
   });
 
   testWidgets('tapping reports the selection', (tester) async {

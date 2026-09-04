@@ -6,6 +6,7 @@ import 'package:save_some_ui/widgets/brand/wordmark.dart';
 import 'package:save_some_ui/widgets/charts/price_sparkline.dart';
 import 'package:save_some_ui/widgets/common/avatar_badge.dart';
 import 'package:save_some_ui/widgets/common/primary_button.dart';
+import 'package:save_some_ui/widgets/common/retailer_logo.dart';
 import 'package:save_some_ui/widgets/common/search_field.dart';
 import 'package:save_some_ui/widgets/common/settings_tile.dart';
 
@@ -47,14 +48,48 @@ void main() {
     });
 
     testWidgets('uppercases and handles an empty source', (tester) async {
+      // preferLogo off, so these exercise the letter circle rather than
+      // resolving Walmart's bundled mark.
       await tester.pumpWidget(wrapped(const Column(
         children: [
-          AvatarBadge(source: 'walmart'),
-          AvatarBadge(source: '   '),
+          AvatarBadge(source: 'walmart', preferLogo: false),
+          AvatarBadge(source: '   ', preferLogo: false),
         ],
       )));
       expect(find.text('W'), findsOneWidget);
       expect(find.text('?'), findsOneWidget);
+    });
+
+    testWidgets('a known retailer shows its logo instead of a letter',
+        (tester) async {
+      await tester.pumpWidget(wrapped(const AvatarBadge(source: 'Walmart')));
+      await tester.pumpAndSettle();
+      expect(find.text('W'), findsNothing);
+    });
+
+    testWidgets('an unknown retailer still falls back to a letter',
+        (tester) async {
+      await tester.pumpWidget(wrapped(const AvatarBadge(source: "Bodega Bob's")));
+      await tester.pumpAndSettle();
+      expect(find.text('B'), findsOneWidget);
+    });
+  });
+
+  group('RetailerLogo name matching', () {
+    test('normalises punctuation and casing', () {
+      // "BJ's", "BJs" and "bj s wholesale club" must all resolve to one mark.
+      for (final name in ["BJ's", 'BJs', "bj's wholesale club"]) {
+        expect(RetailerLogo.hasLogo(name), isTrue, reason: name);
+      }
+      for (final name in ['Walmart', 'walmart', 'Home Depot', 'THE HOME DEPOT',
+                          "Lowe's", "Sam's Club", 'Target', 'Amazon']) {
+        expect(RetailerLogo.hasLogo(name), isTrue, reason: name);
+      }
+    });
+
+    test('reports no logo for retailers we have no art for', () {
+      expect(RetailerLogo.hasLogo('Wegmans'), isFalse);
+      expect(RetailerLogo.hasLogo(''), isFalse);
     });
   });
 

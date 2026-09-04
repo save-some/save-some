@@ -1,4 +1,5 @@
 import 'package:save_some_ui/config/env.dart';
+import 'package:save_some_ui/state/watchlist_controller.dart';
 
 import 'api_client.dart';
 import 'home_service.dart';
@@ -26,4 +27,7 @@ class AppServices {
   late final ProductsService products = ProductsService(client);
   late final RetailersService retailers = RetailersService(client);
   late final HomeService home = HomeService(users, products);
+
+  /// Shared so a save on one screen is reflected on every other.
+  late final WatchlistController watchlist = WatchlistController(users);
 }
