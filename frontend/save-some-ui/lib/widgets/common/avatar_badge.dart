@@ -1,20 +1,31 @@
 import 'package:flutter/material.dart';
 
-/// The lavender initial-circle that leads every retailer and product row.
+import 'package:save_some_ui/widgets/common/retailer_logo.dart';
+
+/// The circle that leads every retailer and product row.
 ///
-/// Extracted from ProductCard so the maps and products lists can use the same
-/// mark. The fill is the scheme's primaryContainer, which is exactly the
-/// #EADEFF the design uses.
+/// Shows the retailer's logo when one is bundled, and falls back to a lavender
+/// initial-circle otherwise. The fill is the scheme's primaryContainer, which is
+/// exactly the #EADEFF the design uses.
 class AvatarBadge extends StatelessWidget {
-  /// Text to derive the initial from. Empty falls back to a neutral glyph.
+  /// Text to derive the initial from, and to match a logo against.
   final String source;
   final double size;
 
-  const AvatarBadge({super.key, required this.source, this.size = 40});
+  /// Set false where a logo would be wrong — a product name, say, rather than a
+  /// retailer.
+  final bool preferLogo;
+
+  const AvatarBadge({
+    super.key,
+    required this.source,
+    this.size = 40,
+    this.preferLogo = true,
+  });
 
   /// First *letter*, not first character: product names like `65" Samsung TV`
   /// would otherwise render a badge reading "6".
-  static String _initialOf(String source) {
+  static String initialOf(String source) {
     for (final char in source.trim().split('')) {
       if (RegExp(r'[A-Za-z]').hasMatch(char)) return char.toUpperCase();
     }
@@ -24,9 +35,25 @@ class AvatarBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final initial = _initialOf(source);
+    final letterCircle = _LetterCircle(source: source, size: size);
+    if (!preferLogo) return letterCircle;
+    return RetailerLogo(
+      retailerName: source,
+      size: size,
+      fallback: letterCircle,
+    );
+  }
+}
 
+class _LetterCircle extends StatelessWidget {
+  final String source;
+  final double size;
+
+  const _LetterCircle({required this.source, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       height: size,
       width: size,
@@ -36,53 +63,12 @@ class AvatarBadge extends StatelessWidget {
         shape: BoxShape.circle,
       ),
       child: Text(
-        initial,
+        AvatarBadge.initialOf(source),
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: scheme.onPrimaryContainer,
               height: 1,
+              fontSize: size * 0.42,
             ),
-      ),
-    );
-  }
-}
-
-/// The neutral rounded block the design shows in each card's trailing slot where
-/// product photography would go. Products currently carry no images, so this is
-/// what actually renders — and it's also the fallback when a URL fails to load.
-class ThumbPlaceholder extends StatelessWidget {
-  final double size;
-  final String? imageUrl;
-
-  const ThumbPlaceholder({super.key, this.size = 44, this.imageUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final block = Container(
-      height: size,
-      width: size,
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
-        borderRadius: const BorderRadius.all(Radius.circular(8)),
-      ),
-      child: Icon(
-        Icons.category_outlined,
-        size: size * 0.45,
-        color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
-      ),
-    );
-
-    final url = imageUrl;
-    if (url == null || url.isEmpty) return block;
-
-    return ClipRRect(
-      borderRadius: const BorderRadius.all(Radius.circular(8)),
-      child: Image.network(
-        url,
-        height: size,
-        width: size,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => block,
       ),
     );
   }
