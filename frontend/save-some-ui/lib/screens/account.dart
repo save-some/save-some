@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-// gotrue exports its own User; ours is the profile row from our API, so hide
-// theirs rather than prefixing every use of ours.
-import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
-import 'package:save_some_ui/main.dart' show supabaseReady, themeModeNotifier;
+import 'package:save_some_ui/main.dart' show themeModeNotifier;
 import 'package:save_some_ui/models/models.dart';
 import 'package:save_some_ui/screens/submit_product.dart';
 import 'package:save_some_ui/services/app_services.dart';
+import 'package:save_some_ui/state/session.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/common/settings_tile.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
@@ -41,11 +39,19 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   Future<void> _signOut() async {
+    final isDevUser = AppSession.instance.isDevUser;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Sign out?'),
-        content: const Text('You\'ll need to sign in again to see your products.'),
+        content: Text(
+          isDevUser
+              // Be honest about what this does in a credential-less run, rather
+              // than implying a real account is being signed out of.
+              ? 'This run has no Supabase credentials, so you\'re signed in as the '
+                  'local development user. Signing out returns you to the log-in screen.'
+              : 'You\'ll need to sign in again to see your products.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -60,15 +66,10 @@ class _AccountScreenState extends State<AccountScreen> {
     );
     if (confirmed != true) return;
 
-    if (!supabaseReady) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not signed in — running as the dev user.')),
-      );
-      return;
-    }
-    // AuthGate observes the cleared session and returns to sign-in.
-    await Supabase.instance.client.auth.signOut();
+    // Clears the session either way; AuthGate follows it back to sign-in. This
+    // used to only show a SnackBar when Supabase was unconfigured, which is the
+    // state the app actually runs in — so sign-out never worked.
+    await AppSession.instance.signOut();
   }
 
   Future<void> _pickThemeMode() async {

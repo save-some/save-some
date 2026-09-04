@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:save_some_ui/config/env.dart';
 import 'package:save_some_ui/forms/signup.dart';
-import 'package:save_some_ui/main.dart' show supabaseReady;
-import 'package:save_some_ui/screens/home.dart';
+import 'package:save_some_ui/state/session.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/brand/blob_backdrop.dart';
 import 'package:save_some_ui/widgets/brand/wordmark.dart';
@@ -47,7 +45,7 @@ class _SignInFormState extends State<SignInForm> {
   /// Every auth path reports failures the same way; this replaces three
   /// identical `on AuthException catch` blocks.
   Future<void> _run(Future<void> Function() action) async {
-    if (!supabaseReady) {
+    if (!AppSession.instance.supabaseReady) {
       _notify('Sign-in needs SUPABASE_URL and SUPABASE_ANON_KEY in .env.');
       return;
     }
@@ -107,12 +105,11 @@ class _SignInFormState extends State<SignInForm> {
   /// anonymous session; without it, the seeded development user is used, which
   /// is what makes the app runnable against just the local backend.
   Future<void> _continueWithoutAccount() async {
-    if (!supabaseReady) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (_) => const HomeScreen(userId: Env.devUserId),
-        ),
-      );
+    // No credentials configured: enter as the seeded development profile.
+    // AuthGate watches Session, so it swaps the screen — this used to push a
+    // route by hand, which left sign-in underneath it.
+    if (!AppSession.instance.supabaseReady) {
+      AppSession.instance.signInAsDevUser();
       return;
     }
     await _run(() async {

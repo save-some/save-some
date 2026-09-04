@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,14 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:save_some_ui/config/env.dart';
 import 'package:save_some_ui/forms/signin.dart';
 import 'package:save_some_ui/screens/home.dart';
+import 'package:save_some_ui/state/session.dart';
 import 'package:save_some_ui/theme/app_theme.dart';
-
-/// Whether Supabase auth is wired up for this run.
-///
-/// The app deliberately works without it: local UI development only needs the
-/// FastAPI backend, and requiring Supabase credentials to render a single frame
-/// made the whole app unbootable without secrets.
-bool supabaseReady = false;
 
 /// Drives light/dark. The account screen's "Color Scheme" row writes to this.
 ///
@@ -39,16 +31,19 @@ Future<void> main() async {
   if (url.isNotEmpty && anonKey.isNotEmpty) {
     try {
       await Supabase.initialize(url: url, anonKey: anonKey);
-      supabaseReady = true;
+      AppSession.instance.bindSupabase();
     } catch (error) {
       debugPrint('save-some: Supabase.initialize failed ($error).');
     }
-  } else {
+  }
+
+  if (!AppSession.instance.supabaseReady) {
     debugPrint(
       'save-some: SUPABASE_URL / SUPABASE_ANON_KEY not set — skipping auth and '
       'signing in as the development user ${Env.devUserId}. '
       'See .env.example to enable real authentication.',
     );
+    AppSession.instance.signInAsDevUser();
   }
 
   runApp(const MyApp());
@@ -75,53 +70,25 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// Routes to the app or the sign-in screen based on Supabase auth state.
+/// Shows the app or the sign-in screen, following [Session].
 ///
-/// When Supabase isn't configured there is no session to observe, so this goes
-/// straight to the app as [Env.devUserId] — the profile that
-/// backend/seed/local_seed.sql creates.
-class AuthGate extends StatefulWidget {
+/// Deliberately thin: all the auth state lives in Session so that signing out
+/// works identically whether Supabase is configured or the app is running as the
+/// local development user.
+class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  StreamSubscription<AuthState>? _authSubscription;
-  String? _userId;
-
-  @override
-  void initState() {
-    super.initState();
-
-    if (!supabaseReady) {
-      _userId = Env.devUserId;
-      return;
-    }
-
-    final auth = Supabase.instance.client.auth;
-    // Start from any existing session, e.g. a returning user.
-    _userId = auth.currentSession?.user.id;
-
-    // Previously this subscription was never cancelled, so the callback
-    // outlived the State and called setState after dispose.
-    _authSubscription = auth.onAuthStateChange.listen((data) {
-      if (!mounted) return;
-      setState(() => _userId = data.session?.user.id);
-    });
-  }
-
-  @override
-  void dispose() {
-    _authSubscription?.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final userId = _userId;
-    if (userId == null) return const SignInForm();
-    return HomeScreen(userId: userId);
+    return ListenableBuilder(
+      listenable: AppSession.instance,
+      builder: (context, _) {
+        final userId = AppSession.instance.userId;
+        if (userId == null) return const SignInForm();
+        // Keyed by user so switching accounts rebuilds the tree rather than
+        // leaving one user's fetched data on screen.
+        return HomeScreen(key: ValueKey(userId), userId: userId);
+      },
+    );
   }
 }

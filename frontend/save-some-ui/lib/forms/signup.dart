@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:save_some_ui/main.dart' show supabaseReady;
+import 'package:save_some_ui/state/session.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/brand/blob_backdrop.dart';
 import 'package:save_some_ui/widgets/brand/wordmark.dart';
@@ -74,7 +74,7 @@ class _SignUpFormState extends State<SignUpForm> {
     setState(() => _attempted = true);
     if (!_isValid) return;
 
-    if (!supabaseReady) {
+    if (!AppSession.instance.supabaseReady) {
       _notify('Sign-up needs SUPABASE_URL and SUPABASE_ANON_KEY in .env.');
       return;
     }
