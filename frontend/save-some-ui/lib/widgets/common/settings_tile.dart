@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:save_some_ui/theme/tokens.dart';
+import 'package:save_some_ui/widgets/common/app_card.dart';
 
 /// One row of the design's account screen: leading glyph, label, and either a
 /// chevron or a switch.
@@ -53,8 +54,9 @@ class SettingsTile extends StatelessWidget {
         children: [
           Text(
             trailingText!,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: scheme.onSurfaceVariant),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(width: AppSpacing.xs),
           Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
@@ -64,30 +66,25 @@ class SettingsTile extends StatelessWidget {
       trailing = Icon(Icons.chevron_right, color: scheme.onSurfaceVariant);
     }
 
-    return Card(
-      child: InkWell(
-        borderRadius: AppRadius.lgAll,
-        // A switch row is driven by its switch, so the row itself isn't tappable.
-        onTap: isSwitch ? null : onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.lg,
+    return AppCard(
+      // A switch row is driven by its switch, so the row itself isn't tappable.
+      onTap: isSwitch ? null : onTap,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.lg,
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 26, color: color),
+          const SizedBox(width: AppSpacing.lg),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.titleMedium?.copyWith(color: color),
+            ),
           ),
-          child: Row(
-            children: [
-              Icon(icon, size: 26, color: color),
-              const SizedBox(width: AppSpacing.lg),
-              Expanded(
-                child: Text(
-                  label,
-                  style: theme.textTheme.titleMedium?.copyWith(color: color),
-                ),
-              ),
-              trailing,
-            ],
-          ),
-        ),
+          trailing,
+        ],
       ),
     );
   }
