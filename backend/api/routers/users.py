@@ -5,10 +5,14 @@ from helpers.db import (
    retrieve_user_interests,
    retrieve_user_retailers,
    retrieve_watchlist,
+   retrieve_search_history,
    upsert_watchlist_item,
    delete_from_watchlist,
 )
-from api.models import Category, Product, Retailer, Store, User
+from api.models import (
+    Category, Product, Retailer, Store, User,
+    SearchHistoryEntry, WatchlistItemRequest,
+)
 from typing import Optional, List, Dict
 from api.utils import get_db_handle
 
@@ -39,7 +43,7 @@ def get_user_zipcode(user_id: str):
     with get_db_handle() as conn:
         zipcode = retrieve_user_zipcode(conn, user_id)
     if zipcode is None:
-        not_found("User")
+        raise HTTPException(status_code=404, detail="Zipcode not found for user")
     return {"zipcode": zipcode}
  
  
@@ -53,3 +57,39 @@ def get_user_retailers(user_id: str):
 def get_user_watchlist(user_id: str):
     with get_db_handle() as conn:
         return retrieve_watchlist(conn, user_id)
+
+
+@router.post("/{user_id}/watchlist", status_code=201)
+def add_to_watchlist(user_id: str, body: WatchlistItemRequest):
+    """
+    Track a product, or update the target price / notes if it's already
+    tracked. Backs the "Save Product" button on the history screen.
+    """
+    with get_db_handle() as conn:
+        return upsert_watchlist_item(
+            conn,
+            user_id,
+            str(body.product_id),
+            target_price = body.target_price,
+            notes = body.notes,
+        )
+
+
+@router.delete("/{user_id}/watchlist/{product_id}")
+def remove_from_watchlist(user_id: str, product_id: str):
+    """Stop tracking a product."""
+    with get_db_handle() as conn:
+        deleted = delete_from_watchlist(conn, user_id, product_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Product not on the watchlist")
+    return {"deleted": True}
+
+
+@router.get("/{user_id}/history", response_model = List[SearchHistoryEntry])
+def get_user_search_history(user_id: str, limit: int = Query(50, le=200)):
+    """
+    A user's past searches, most recent first — the history screen's
+    recent-searches list. Written by POST /v1/products/search.
+    """
+    with get_db_handle() as conn:
+        return retrieve_search_history(conn, user_id, limit=limit)

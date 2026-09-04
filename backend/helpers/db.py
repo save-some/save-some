@@ -166,17 +166,26 @@ def retrieve_trending_products (conn, limit: int = 20, days: int = 360) -> list:
 	(original_price -> price) among prices scraped in the last `days`.
 	This is a placeholder until there's a real recommendation engine —
 	it only needs product_prices.original_price to be populated.
+
+	product_prices is append-only, so a naive join yields one row per
+	observation and the same product would occupy several slots in the
+	home screen's list. The inner DISTINCT ON collapses to each product's
+	most recent observation first; the outer query then ranks those.
 	"""
 	query = """
-		SELECT p.*, pp.price, pp.original_price,
-			   COALESCE(pp.original_price - pp.price, 0) AS price_drop,
-			   rp.retailer_id, r.name AS retailer_name
-		FROM product_prices pp
-		JOIN retailer_products rp ON rp.id = pp.retailer_product_id
-		JOIN products p ON p.id = rp.product_id
-		JOIN retailers r ON r.id = rp.retailer_id
-		WHERE pp.scraped_at >= now() - (%s || ' days')::interval
-		ORDER BY price_drop DESC, pp.scraped_at DESC
+		SELECT * FROM (
+			SELECT DISTINCT ON (p.id)
+				   p.*, pp.price, pp.original_price,
+				   COALESCE(pp.original_price - pp.price, 0) AS price_drop,
+				   pp.scraped_at, rp.retailer_id, r.name AS retailer_name
+			FROM product_prices pp
+			JOIN retailer_products rp ON rp.id = pp.retailer_product_id
+			JOIN products p ON p.id = rp.product_id
+			JOIN retailers r ON r.id = rp.retailer_id
+			WHERE pp.scraped_at >= now() - (%s || ' days')::interval
+			ORDER BY p.id, pp.scraped_at DESC
+		) latest
+		ORDER BY price_drop DESC, scraped_at DESC
 		LIMIT %s
 	"""
 
@@ -236,14 +245,17 @@ def retrieve_retailer_product (conn, retailer_id: str, external_id: str) -> Opti
 def retrieve_nearby_stores (conn, lat: float, lng: float,
                             retailer_ids: list = None, radius_miles: float = 25) -> list:
     """Stores within radius_miles of (lat, lng), nearest first. Optionally filter by retailer_ids."""
+    # least(1.0, ...) guards acos(): for a store sitting at the query point the
+    # cosine terms sum to a hair over 1 under floating-point error, and acos()
+    # then raises "input is out of range" rather than returning 0 miles.
     query = """
         SELECT * FROM (
             SELECT *,
-                3959 * acos(
+                3959 * acos(least(1.0,
                     cos(radians(%s)) * cos(radians(lat)) *
                     cos(radians(lng) - radians(%s)) +
                     sin(radians(%s)) * sin(radians(lat))
-                ) AS distance_miles
+                )) AS distance_miles
             FROM stores
             WHERE lat IS NOT NULL AND lng IS NOT NULL
         ) s

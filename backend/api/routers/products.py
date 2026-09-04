@@ -7,8 +7,9 @@ from helpers.db import (
     retrieve_price_history,
     retrieve_trending_products,
     retrieve_watchlist,
-    search_products_for_retailer, 
+    search_products_for_retailer,
     query_products,
+    log_search,
 )
 from api.models import (
     Category, Product, Retailer, Store, User, 

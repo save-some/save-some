@@ -19,7 +19,10 @@ class Category (BaseModel):
 class Retailer (BaseModel):
     id: UUID
     name: str
-    website_url: Optional[str] = None
+    # Matches the retailers.website column. Naming this website_url instead
+    # made the field drop silently from every response, since Pydantic found
+    # no such key on the row.
+    website: Optional[str] = None
     created_at: datetime
 
 
@@ -104,9 +107,17 @@ class OnboardingRequest(BaseModel):
  
  
 
-# History stuff ... 
- 
+# History stuff ...
+
 class SearchHistoryEntry(BaseModel):
     id: UUID
     query: str
     searched_at: datetime
+
+
+# Watchlist stuff ...
+
+class WatchlistItemRequest(BaseModel):
+    product_id: UUID
+    target_price: Optional[float] = None   # notify once the price falls below this
+    notes: Optional[str] = None
