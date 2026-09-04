@@ -216,25 +216,17 @@ WHERE pp.retailer_product_id = spec.retailer_product_id
   AND pp.original_price IS NOT NULL;
 
 -- ---------------------------------------------------------
--- Stores. Coordinates for the towns legible on the design's map frame, so
--- retrieve_nearby_stores returns results for a Hoboken-area query. Nothing
--- in production populates this table at all.
+-- Stores are NOT seeded here.
+--
+-- They come from OpenStreetMap instead, which is real data rather than invented
+-- coordinates:
+--
+--     python seed/import_osm_stores.py --metro nyc
+--
+-- That writes ~148 genuine store locations for the New York area. Run it after
+-- this file. Coverage varies by chain — Target and Home Depot are mapped
+-- thoroughly, Amazon has no storefronts at all — which is accurate.
 -- ---------------------------------------------------------
-
-INSERT INTO stores (retailer_id, name, address, city, state, zipcode, lat, lng) VALUES
-  ('11111111-1111-4111-8111-000000000001', 'Walmart Supercenter',  '400 Park Plaza Dr',    'Secaucus',            'NJ', '07094', 40.7895, -74.0565),
-  ('11111111-1111-4111-8111-000000000002', 'Target Hoboken',       '614 Clinton St',       'Hoboken',             'NJ', '07030', 40.7439, -74.0324),
-  ('11111111-1111-4111-8111-000000000005', 'Home Depot Chelsea',   '40 W 23rd St',         'New York',            'NY', '10010', 40.7420, -73.9903),
-  ('11111111-1111-4111-8111-000000000006', 'Lowe''s Brooklyn',     '118 2nd Ave',          'Brooklyn',            'NY', '11215', 40.6560, -73.9560),
-  ('11111111-1111-4111-8111-000000000004', 'BJ''s Bronx',          '825 Hutchinson River', 'Bronx',               'NY', '10465', 40.8290, -73.8500),
-  ('11111111-1111-4111-8111-000000000007', 'Sam''s Club Secaucus', '100 Park Plaza Dr',    'Secaucus',            'NJ', '07094', 40.7900, -74.0640),
-  ('11111111-1111-4111-8111-000000000002', 'Target Montclair',     '183 Bloomfield Ave',   'Montclair',           'NJ', '07042', 40.8259, -74.2090),
-  ('11111111-1111-4111-8111-000000000001', 'Walmart Elizabeth',    '900 Springfield Rd',   'Elizabeth',           'NJ', '07208', 40.6640, -74.2107),
-  ('11111111-1111-4111-8111-000000000002', 'Target Garden City',   '901 Stewart Ave',      'Garden City',         'NY', '11530', 40.7268, -73.6343),
-  ('11111111-1111-4111-8111-000000000005', 'Home Depot New Roch',  '77 Weyman Ave',        'New Rochelle',        'NY', '10805', 40.9115, -73.7826),
-  ('11111111-1111-4111-8111-000000000006', 'Lowe''s Wayne',        '85 Rte 46 E',          'Wayne',               'NJ', '07470', 40.9256, -74.2765),
-  ('11111111-1111-4111-8111-000000000002', 'Target Valley Stream', '77 Green Acres Rd',    'Valley Stream',       'NY', '11581', 40.6643, -73.7085),
-  ('11111111-1111-4111-8111-000000000004', 'BJ''s Middletown',     '1320 Rte 35',          'Middletown Township', 'NJ', '07748', 40.3960, -74.1000);
 
 -- ---------------------------------------------------------
 -- Watchlist. Two entries so the Products page's "Your Products" section has
