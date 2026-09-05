@@ -31,6 +31,25 @@ class ProductSearchDelegate extends SearchDelegate<Product?> {
   Timer? _debounce;
   String? _pendingQuery;
   Future<List<Product>>? _pendingSearch;
+  bool _closed = false;
+
+  /// Stops the pending debounce. Both exits below funnel through this, because
+  /// otherwise a timer armed by the last keystroke fires after the search UI is
+  /// gone and issues a request whose result nobody wants.
+  ///
+  /// Idempotent: nothing calls SearchDelegate.dispose for a delegate created
+  /// inline at a showSearch call site, so close() has to do the teardown too.
+  void _cancelPending() {
+    _closed = true;
+    _debounce?.cancel();
+    _debounce = null;
+  }
+
+  @override
+  void dispose() {
+    _cancelPending();
+    super.dispose();
+  }
 
   @override
   List<Widget> buildActions(BuildContext context) => [
@@ -47,6 +66,12 @@ class ProductSearchDelegate extends SearchDelegate<Product?> {
         onPressed: () => close(context, null),
       );
 
+  @override
+  void close(BuildContext context, Product? result) {
+    _cancelPending();
+    super.close(context, result);
+  }
+
   // Submitted (the user pressed enter) — this one is worth remembering.
   @override
   Widget buildResults(BuildContext context) => _resultsList(query, log: true);
@@ -60,20 +85,39 @@ class ProductSearchDelegate extends SearchDelegate<Product?> {
   /// keystrokes keep resetting the timer, so only the last keystroke in
   /// a burst actually triggers a network call, ~300ms after typing stops.
   Future<List<Product>> _debouncedSearch(String q, {required bool log}) {
-    if (_pendingQuery == q && _pendingSearch != null) {
-      return _pendingSearch!;
+    // Reuse only while the *same* query is still resolving. This used to hold on
+    // to the completed future for the rest of the session, so re-running a search
+    // replayed the first result set even if prices had moved since.
+    final pending = _pendingSearch;
+    if (_pendingQuery == q && pending != null && !_settled) {
+      return pending;
     }
+
     _debounce?.cancel();
     final completer = Completer<List<Product>>();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      productsService
-          .search(q, userId: log ? userId : null)
-          .then(completer.complete, onError: completer.completeError);
-    });
     _pendingQuery = q;
     _pendingSearch = completer.future;
+    _settled = false;
+
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (_closed) return;
+      productsService.search(q, userId: log ? userId : null).then(
+        (results) {
+          _settled = true;
+          if (!completer.isCompleted) completer.complete(results);
+        },
+        onError: (Object error, StackTrace stack) {
+          _settled = true;
+          if (!completer.isCompleted) completer.completeError(error, stack);
+        },
+      );
+    });
     return completer.future;
   }
+
+  /// True once the current query's request has returned, which is what makes the
+  /// cache above a de-duplicator rather than a permanent memo.
+  bool _settled = false;
 
   Widget _resultsList(String q, {bool log = false}) {
     final trimmed = q.trim();
