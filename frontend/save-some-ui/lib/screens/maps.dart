@@ -37,14 +37,21 @@ class _MapsScreenState extends State<MapsScreen> {
   }
 
   Future<_MapsData> _load() async {
-    final allRetailers = await _services.retailers.fetchAll();
-    final followed = await _services.users.fetchRetailers(widget.userId);
+    // Started together rather than awaited in sequence: none of the three depends
+    // on another, and running them serially cost three round-trips of latency
+    // before the tab could render anything.
+    final retailersFuture = _services.retailers.fetchAll();
+    final followedFuture = _services.users.fetchRetailers(widget.userId);
+    // The profile's zipcode is the geo anchor. Server-side geocoding would be
+    // better than a lookup table, but the zipcode is what we reliably have.
+    final zipcodeFuture = _services.users.fetchZipcode(widget.userId);
 
-    // The profile's zipcode is the anchor. Geocoded server-side would be better
-    // than a fixed fallback, but the zipcode is what we reliably have.
-    final zipcode = await _services.users.fetchZipcode(widget.userId);
+    final allRetailers = await retailersFuture;
+    final followed = await followedFuture;
+    final zipcode = await zipcodeFuture;
+
+    // This one genuinely depends on the zipcode, so it stays sequential.
     final anchor = _anchorFor(zipcode);
-
     final stores = await _services.retailers.fetchNearbyStores(
       lat: anchor.$1,
       lng: anchor.$2,

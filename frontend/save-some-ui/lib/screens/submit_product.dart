@@ -51,9 +51,12 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
   }
 
   Future<_SubmitFormData> _load() async {
-    final retailers = await _services.retailers.fetchAll();
-    final categories = await _services.categories.fetchAll();
-    return _SubmitFormData(retailers: retailers, categories: categories);
+    final retailers = _services.retailers.fetchAll();
+    final categories = _services.categories.fetchAll();
+    return _SubmitFormData(
+      retailers: await retailers,
+      categories: await categories,
+    );
   }
 
   String get _url => _urlController.text.trim();
