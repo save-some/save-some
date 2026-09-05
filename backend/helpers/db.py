@@ -22,20 +22,42 @@ _LATEST_PRICE_FOR_RP = """
         ) latest ON true
 """
 
-# For queries that only have a canonical product in scope, aliased `p`: takes the
-# most recent observation across every retailer carrying it.
-_LATEST_PRICE_FOR_PRODUCT = """
+# For queries that only have a canonical product in scope, aliased `p`: the
+# *cheapest* price currently on offer, and which retailer is offering it.
+#
+# Deliberately cheapest rather than most-recently-scraped. Ordering the whole
+# history by scraped_at meant a product's headline price was decided by scrape
+# timing — the 65" TV showed $537.72 from Sam's Club instead of $497.99 from
+# Walmart purely because Sam's Club was polled later. In an app whose whole pitch
+# is saving money, the number next to a product has to be the best price
+# available.
+#
+# Two levels of lateral: the inner one reduces each retailer to its current price
+# (product_prices is append-only), the outer one picks the lowest of those.
+_CHEAPEST_PRICE_FOR_PRODUCT = """
         LEFT JOIN LATERAL (
-            SELECT pp.price, pp.original_price, pp.in_stock, pp.scraped_at
+            SELECT current.price, current.original_price, current.in_stock,
+                   current.scraped_at, r2.name AS price_retailer_name
             FROM retailer_products rp2
-            JOIN product_prices pp ON pp.retailer_product_id = rp2.id
+            JOIN retailers r2 ON r2.id = rp2.retailer_id
+            JOIN LATERAL (
+                SELECT pp.price, pp.original_price, pp.in_stock, pp.scraped_at
+                FROM product_prices pp
+                WHERE pp.retailer_product_id = rp2.id
+                ORDER BY pp.scraped_at DESC
+                LIMIT 1
+            ) current ON true
             WHERE rp2.product_id = p.id
-            ORDER BY pp.scraped_at DESC
+            ORDER BY current.price ASC
             LIMIT 1
         ) latest ON true
 """
 
 _LATEST_PRICE_COLUMNS = "latest.price, latest.original_price, latest.in_stock"
+
+# The product-level join also reports who has that price, so the UI can say
+# "$497.99 at Walmart" instead of an unattributed number.
+_CHEAPEST_PRICE_COLUMNS = _LATEST_PRICE_COLUMNS + ", latest.price_retailer_name"
 
 
 # Retailers
@@ -196,9 +218,9 @@ def query_products (conn, search_query: str, limit: int = 25, offset: int = 0) -
     Backs POST /v1/products/search.
     """
     query = f"""
-        SELECT p.*, {_LATEST_PRICE_COLUMNS}
+        SELECT p.*, {_CHEAPEST_PRICE_COLUMNS}
         FROM products p
-        {_LATEST_PRICE_FOR_PRODUCT}
+        {_CHEAPEST_PRICE_FOR_PRODUCT}
         WHERE p.name ILIKE %s
         ORDER BY p.name
         LIMIT %s OFFSET %s
@@ -415,7 +437,7 @@ def retrieve_user_retailers (conn, user_id: str) -> list:
 
 def complete_onboarding (conn, user_id: str, zipcode: str,
                          retailer_ids: list, interest_ids: list,
-                         display_name: str = None) -> Optional[dict]:
+                         display_name: str) -> Optional[dict]:
     """
     Create or update a profile and replace the user's retailer and interest
     picks, all in one transaction — a half-onboarded user (profile but no
@@ -424,9 +446,9 @@ def complete_onboarding (conn, user_id: str, zipcode: str,
     Picks are replaced rather than merged, because this backs a form that shows
     the current selection: unticking something has to actually remove it.
 
-    display_name is required non-null by the schema, so a placeholder derived
-    from the zipcode is used when the caller has nothing better. TODO: collect a
-    real name during onboarding.
+    display_name is required non-null by the schema and is what the home screen
+    greets you by, so the caller must supply it — this used to fall back to
+    "Shopper", which meant every onboarded user got the same name.
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         try:
@@ -436,13 +458,10 @@ def complete_onboarding (conn, user_id: str, zipcode: str,
                 VALUES (%s, %s, %s)
                 ON CONFLICT (id) DO UPDATE
                     SET zipcode = EXCLUDED.zipcode,
-                        display_name = COALESCE(
-                            NULLIF(profiles.display_name, ''),
-                            EXCLUDED.display_name
-                        )
+                        display_name = EXCLUDED.display_name
                 RETURNING *
                 """,
-                (user_id, display_name or "Shopper", zipcode),
+                (user_id, display_name, zipcode),
             )
             profile = cur.fetchone()
 
@@ -514,10 +533,10 @@ def retrieve_watchlist(conn, user_id: str) -> list:
     query = f"""
         SELECT p.id, p.name, p.description, p.image_url, p.upc, p.brand,
                p.created_at, up.target_price, up.notes,
-               up.added_at AS tracked_at, {_LATEST_PRICE_COLUMNS}
+               up.added_at AS tracked_at, {_CHEAPEST_PRICE_COLUMNS}
         FROM user_products up
         JOIN products p ON p.id = up.product_id
-        {_LATEST_PRICE_FOR_PRODUCT}
+        {_CHEAPEST_PRICE_FOR_PRODUCT}
         WHERE up.user_id = %s
         ORDER BY up.added_at DESC
     """

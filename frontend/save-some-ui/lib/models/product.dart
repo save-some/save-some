@@ -20,6 +20,11 @@ class Product {
 
   final String? retailerId;
   final String? retailerName;
+
+  /// Which retailer [price] came from, when it was picked as the cheapest across
+  /// several. Distinct from [retailerName] so a watchlist row still leads with
+  /// the product name rather than a shop name.
+  final String? priceRetailerName;
   final double? price;
   final double? originalPrice;
   final double? targetPrice;
@@ -36,6 +41,7 @@ class Product {
     required this.createdAt,
     this.retailerId,
     this.retailerName,
+    this.priceRetailerName,
     this.price,
     this.originalPrice,
     this.targetPrice,
@@ -57,6 +63,7 @@ class Product {
         createdAt: parseDate(json['created_at']),
         retailerId: json['retailer_id'] as String?,
         retailerName: json['retailer_name'] as String?,
+        priceRetailerName: json['price_retailer_name'] as String?,
         price: parseDoubleOrNull(json['price']),
         originalPrice: parseDoubleOrNull(json['original_price']),
         targetPrice: parseDoubleOrNull(json['target_price']),
@@ -75,6 +82,7 @@ class Product {
         'created_at': createdAt.toIso8601String(),
         'retailer_id': retailerId,
         'retailer_name': retailerName,
+        'price_retailer_name': priceRetailerName,
         'price': price,
         'original_price': originalPrice,
         'target_price': targetPrice,

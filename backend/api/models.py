@@ -54,6 +54,10 @@ class Product (BaseModel):
 	# Optional context for a product
 	retailer_id: Optional[UUID] = None
 	retailer_name: Optional[str] = None
+	# Which retailer the `price` below belongs to, when it was chosen as the
+	# cheapest across several. Separate from retailer_name so a watchlist row
+	# still leads with the product rather than a shop.
+	price_retailer_name: Optional[str] = None
 	price: Optional[float] = None
 	original_price: Optional[float] = None
 	target_price: Optional[float] = None
@@ -104,6 +108,9 @@ class OnboardingRequest(BaseModel):
     zipcode: str
     retailers: List[UUID]
     interests: List[UUID]
+    # profiles.display_name is NOT NULL and the home screen greets by it, so
+    # without this every onboarded user was called "Shopper".
+    display_name: Optional[str] = None
  
  
 

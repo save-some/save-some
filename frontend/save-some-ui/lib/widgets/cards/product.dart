@@ -131,6 +131,16 @@ class _PriceLine extends StatelessWidget {
             ),
           ),
         if (product.isDiscounted) _SavingBadge(product: product),
+        // Only worth saying when the headline isn't already the retailer —
+        // "Walmart / 65\" TV / $497.99 at Walmart" reads as a stutter.
+        if (price != null &&
+            product.priceRetailerName != null &&
+            (product.retailerName == null || product.retailerName!.isEmpty))
+          Text(
+            'at ${product.priceRetailerName}',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
         if (target != null)
           Text(
             // Now shown alongside the price rather than instead of it: a tracked
