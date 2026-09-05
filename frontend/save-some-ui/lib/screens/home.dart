@@ -16,6 +16,7 @@ import 'package:save_some_ui/widgets/common/chip_group.dart';
 import 'package:save_some_ui/widgets/common/primary_button.dart';
 import 'package:save_some_ui/widgets/common/section_header.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
+import 'package:save_some_ui/widgets/common/page_width.dart';
 import 'package:save_some_ui/widgets/nav/app_nav_bar.dart';
 
 /// Home tab content: greeting, interest chips, trending products.
@@ -208,7 +209,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   /// Opens on Home, the centre tab, as the design shows. It used to default to
   /// 0, which is Products.
-  int _selectedIndex = AppNavBar.homeIndex;
+  int _selectedIndex = homeDestinationIndex;
 
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) return;
@@ -217,12 +218,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // IndexedStack, not `pages.elementAt(index)`: that rebuilt each tab from
-      // scratch on every switch, so scroll position and in-flight requests were
-      // discarded. The stray "back to sign in" button that used to sit above
-      // this is gone — it did nothing when HomeScreen was the root route.
-      body: SafeArea(
+    // AppNavigation picks a side rail or a bottom bar from the window size, and
+    // PageWidth keeps the column readable instead of letting cards span a 1440px
+    // browser window.
+    //
+    // IndexedStack, not `pages.elementAt(index)`: that rebuilt each tab from
+    // scratch on every switch, so scroll position and in-flight requests were
+    // discarded.
+    return AppNavigation(
+      selectedIndex: _selectedIndex,
+      onDestinationSelected: _onDestinationSelected,
+      body: PageWidth(
         child: IndexedStack(
           index: _selectedIndex,
           children: [
@@ -233,10 +239,6 @@ class _HomeScreenState extends State<HomeScreen> {
             AccountScreen(userId: widget.userId),
           ],
         ),
-      ),
-      bottomNavigationBar: AppNavBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _onDestinationSelected,
       ),
     );
   }

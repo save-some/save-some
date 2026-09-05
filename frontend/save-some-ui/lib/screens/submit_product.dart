@@ -6,6 +6,7 @@ import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/common/app_text_field.dart';
 import 'package:save_some_ui/widgets/common/avatar_badge.dart';
 import 'package:save_some_ui/widgets/common/primary_button.dart';
+import 'package:save_some_ui/widgets/common/page_width.dart';
 import 'package:save_some_ui/widgets/common/section_header.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
 
@@ -113,78 +114,81 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Submit a Product')),
       body: SafeArea(
-        child: FutureBuilder<_SubmitFormData>(
-          future: _formData,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return AppErrorState(
-                message: 'Couldn\'t load stores and categories.',
-                error: snapshot.error,
-                onRetry: () => setState(() => _formData = _load()),
-              );
-            }
-            if (!snapshot.hasData) return const AppLoading();
-            final data = snapshot.data!;
+        child: PageWidth(
+          child: FutureBuilder<_SubmitFormData>(
+            future: _formData,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return AppErrorState(
+                  message: 'Couldn\'t load stores and categories.',
+                  error: snapshot.error,
+                  onRetry: () => setState(() => _formData = _load()),
+                );
+              }
+              if (!snapshot.hasData) return const AppLoading();
+              final data = snapshot.data!;
 
-            return ListView(
-              padding: AppSpacing.pageAll,
-              children: [
-                const SectionHeader('Product Link'),
-                AppTextField(
-                  controller: _urlController,
-                  hint: 'Paste URL here',
-                  icon: Icons.link,
-                  keyboardType: TextInputType.url,
-                  isIdentifier: true,
-                  errorText: _urlError,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                const SectionHeader('Stores'),
-                _SelectorField(
-                  label: _labelFor(data.retailers, _selectedRetailerId) ??
-                      'Select a Store',
-                  expanded: _storesExpanded,
-                  errorText: _storeError,
-                  onTap: () =>
-                      setState(() => _storesExpanded = !_storesExpanded),
-                ),
-                if (_storesExpanded) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Card(
-                    child: Column(
-                      children: [
-                        for (final retailer in data.retailers)
-                          _StoreRow(
-                            name: retailer.name,
-                            selected: _selectedRetailerId == retailer.id,
-                            onTap: () => setState(() {
-                              _selectedRetailerId = retailer.id;
-                              _storesExpanded = false;
-                            }),
-                          ),
-                      ],
-                    ),
+              return ListView(
+                padding: AppSpacing.pageAll,
+                children: [
+                  const SectionHeader('Product Link'),
+                  AppTextField(
+                    controller: _urlController,
+                    hint: 'Paste URL here',
+                    icon: Icons.link,
+                    keyboardType: TextInputType.url,
+                    isIdentifier: true,
+                    errorText: _urlError,
+                    onChanged: (_) => setState(() {}),
                   ),
+                  const SizedBox(height: AppSpacing.xl),
+                  const SectionHeader('Stores'),
+                  _SelectorField(
+                    label:
+                        _labelFor(data.retailers, _selectedRetailerId) ??
+                        'Select a Store',
+                    expanded: _storesExpanded,
+                    errorText: _storeError,
+                    onTap: () =>
+                        setState(() => _storesExpanded = !_storesExpanded),
+                  ),
+                  if (_storesExpanded) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Card(
+                      child: Column(
+                        children: [
+                          for (final retailer in data.retailers)
+                            _StoreRow(
+                              name: retailer.name,
+                              selected: _selectedRetailerId == retailer.id,
+                              onTap: () => setState(() {
+                                _selectedRetailerId = retailer.id;
+                                _storesExpanded = false;
+                              }),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.xl),
+                  const SectionHeader('Category'),
+                  _CategoryDropdown(
+                    categories: data.categories,
+                    selectedId: _selectedCategoryId,
+                    errorText: _categoryError,
+                    onChanged: (id) => setState(() => _selectedCategoryId = id),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  PrimaryButton(
+                    label: 'Submit for Vote',
+                    icon: Icons.how_to_vote_outlined,
+                    onPressed: _submit,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
                 ],
-                const SizedBox(height: AppSpacing.xl),
-                const SectionHeader('Category'),
-                _CategoryDropdown(
-                  categories: data.categories,
-                  selectedId: _selectedCategoryId,
-                  errorText: _categoryError,
-                  onChanged: (id) => setState(() => _selectedCategoryId = id),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                PrimaryButton(
-                  label: 'Submit for Vote',
-                  icon: Icons.how_to_vote_outlined,
-                  onPressed: _submit,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-              ],
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

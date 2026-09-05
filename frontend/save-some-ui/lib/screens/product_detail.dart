@@ -11,6 +11,7 @@ import 'package:save_some_ui/widgets/common/app_card.dart';
 import 'package:save_some_ui/widgets/common/offer_list.dart';
 import 'package:save_some_ui/widgets/common/product_thumb.dart';
 import 'package:save_some_ui/widgets/common/save_button.dart';
+import 'package:save_some_ui/widgets/common/page_width.dart';
 import 'package:save_some_ui/widgets/common/section_header.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
 
@@ -81,109 +82,116 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _refresh,
-          child: ListView(
-            padding: AppSpacing.pageAll,
-            children: [
-              AppCard(
-                raised: true,
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // The product image the design calls for, at a size
-                        // that's worth looking at rather than a list thumbnail.
-                        ProductThumb(
-                          seed: product.id,
-                          productName: product.name,
-                          imageUrl: product.imageUrl,
-                          size: 96,
-                        ),
-                        const SizedBox(width: AppSpacing.lg),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (product.brand != null)
+        child: PageWidth(
+          child: RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView(
+              padding: AppSpacing.pageAll,
+              children: [
+                AppCard(
+                  raised: true,
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // The product image the design calls for, at a size
+                          // that's worth looking at rather than a list thumbnail.
+                          ProductThumb(
+                            seed: product.id,
+                            productName: product.name,
+                            imageUrl: product.imageUrl,
+                            size: 96,
+                          ),
+                          const SizedBox(width: AppSpacing.lg),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (product.brand != null)
+                                  Text(
+                                    product.brand!,
+                                    style: theme.textTheme.labelLarge?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
                                 Text(
-                                  product.brand!,
-                                  style: theme.textTheme.labelLarge
-                                      ?.copyWith(color: scheme.onSurfaceVariant),
+                                  product.name,
+                                  style: theme.textTheme.titleMedium,
                                 ),
-                              Text(product.name, style: theme.textTheme.titleMedium),
-                              const SizedBox(height: AppSpacing.sm),
-                              if (product.price != null)
-                                _PriceHeadline(product: product),
-                            ],
+                                const SizedBox(height: AppSpacing.sm),
+                                if (product.price != null)
+                                  _PriceHeadline(product: product),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (product.description != null &&
+                          product.description!.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        Text(
+                          product.description!,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
                           ),
                         ),
                       ],
-                    ),
-                    if (product.description != null &&
-                        product.description!.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        product.description!,
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SaveButton(product: product, extended: true),
+                          ),
+                        ],
                       ),
                     ],
-                    const SizedBox(height: AppSpacing.lg),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SaveButton(product: product, extended: true),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              const SectionHeader('Price history'),
-              AppCard(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: FutureBuilder<List<ProductPrice>>(
-                  future: _priceHistory,
+                const SizedBox(height: AppSpacing.xl),
+                const SectionHeader('Price history'),
+                AppCard(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: FutureBuilder<List<ProductPrice>>(
+                    future: _priceHistory,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return AppErrorState(
+                          message: 'Couldn\'t load price history.',
+                          error: snapshot.error,
+                          onRetry: _refresh,
+                        );
+                      }
+                      if (!snapshot.hasData) return const AppLoading();
+                      return _PriceHistoryBlock(prices: snapshot.data!);
+                    },
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                const SectionHeader('Also available at'),
+                FutureBuilder<List<ProductOffer>>(
+                  future: _offers,
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return AppErrorState(
-                        message: 'Couldn\'t load price history.',
+                        message: 'Couldn\'t load other retailers.',
                         error: snapshot.error,
                         onRetry: _refresh,
                       );
                     }
                     if (!snapshot.hasData) return const AppLoading();
-                    return _PriceHistoryBlock(prices: snapshot.data!);
+                    return OfferList(
+                      offers: snapshot.data!,
+                      onSelect: (offer) =>
+                          _openRetailer(offer.retailerId, offer.retailerName),
+                    );
                   },
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              const SectionHeader('Also available at'),
-              FutureBuilder<List<ProductOffer>>(
-                future: _offers,
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return AppErrorState(
-                      message: 'Couldn\'t load other retailers.',
-                      error: snapshot.error,
-                      onRetry: _refresh,
-                    );
-                  }
-                  if (!snapshot.hasData) return const AppLoading();
-                  return OfferList(
-                    offers: snapshot.data!,
-                    onSelect: (offer) =>
-                        _openRetailer(offer.retailerId, offer.retailerName),
-                  );
-                },
-              ),
-              const SizedBox(height: AppSpacing.lg),
-            ],
+                const SizedBox(height: AppSpacing.lg),
+              ],
+            ),
           ),
         ),
       ),
@@ -209,8 +217,9 @@ class _PriceHeadline extends StatelessWidget {
           children: [
             Text(
               formatUsd(product.price!),
-              style: theme.textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             if (product.isDiscounted) ...[
               const SizedBox(width: AppSpacing.sm),
@@ -236,8 +245,9 @@ class _PriceHeadline extends StatelessWidget {
         if (product.targetPrice != null)
           Text(
             'alerting below ${formatUsd(product.targetPrice!)}',
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: scheme.onSurfaceVariant),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
       ],
     );
@@ -275,7 +285,11 @@ class _PriceHistoryBlock extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _Stat(label: 'lowest', value: formatUsd(low), highlight: current <= low),
+            _Stat(
+              label: 'lowest',
+              value: formatUsd(low),
+              highlight: current <= low,
+            ),
             _Stat(label: 'now', value: formatUsd(current)),
             _Stat(label: 'highest', value: formatUsd(high)),
           ],
@@ -314,8 +328,9 @@ class _Stat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: theme.textTheme.labelSmall
-              ?.copyWith(color: scheme.onSurfaceVariant),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+          ),
         ),
         Text(
           value,
