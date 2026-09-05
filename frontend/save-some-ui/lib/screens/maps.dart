@@ -86,7 +86,9 @@ class _MapsScreenState extends State<MapsScreen> {
 
   Future<void> _refresh() async {
     final next = _load();
-    setState(() => _data = next);
+    setState(() {
+      _data = next;
+    });
     await next;
   }
 
@@ -138,19 +140,18 @@ class _MapsScreenState extends State<MapsScreen> {
             padding: AppSpacing.pageAll,
             children: [
               SectionHeader(
-                data.zipcode == null
-                    ? 'Near you'
-                    : 'Near ${data.zipcode}',
+                data.zipcode == null ? 'Near you' : 'Near ${data.zipcode}',
                 trailing: Text(
                   '${data.stores.length} stores',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               if (grouped.isEmpty)
                 const AppEmptyState(
-                  message: 'No stores within 25 miles.\n'
+                  message:
+                      'No stores within 25 miles.\n'
                       'Run seed/import_osm_stores.py to load your area.',
                   icon: Icons.storefront_outlined,
                 )
@@ -232,7 +233,9 @@ class _RetailerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final nearest = group.stores.isEmpty ? null : group.stores.first.distanceMiles;
+    final nearest = group.stores.isEmpty
+        ? null
+        : group.stores.first.distanceMiles;
 
     return SizedBox(
       width: 104,
@@ -258,8 +261,11 @@ class _RetailerTile extends StatelessWidget {
                         color: scheme.surface,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.check_circle,
-                          size: 14, color: scheme.primary),
+                      child: Icon(
+                        Icons.check_circle,
+                        size: 14,
+                        color: scheme.primary,
+                      ),
                     ),
                   ),
               ],
@@ -269,15 +275,17 @@ class _RetailerTile extends StatelessWidget {
               group.retailer.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
             Text(
               nearest == null
                   ? '${group.stores.length} stores'
                   : '${nearest.toStringAsFixed(1)} mi',
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),

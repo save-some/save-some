@@ -42,11 +42,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _refresh() async {
     final searches = _services.users.fetchSearchHistory(widget.userId);
-    setState(() => _searches = searches);
-    await Future.wait([
-      searches,
-      _services.watchlist.load(widget.userId),
-    ]);
+    setState(() {
+      _searches = searches;
+    });
+    await Future.wait([searches, _services.watchlist.load(widget.userId)]);
   }
 
   void _openSearch({String? initialQuery}) {
@@ -67,10 +66,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void _openProduct(Product product) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ProductDetailScreen(
-          userId: widget.userId,
-          product: product,
-        ),
+        builder: (_) =>
+            ProductDetailScreen(userId: widget.userId, product: product),
       ),
     );
   }
@@ -82,10 +79,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       child: ListView(
         padding: AppSpacing.pageAll,
         children: [
-          SearchField(
-            hint: 'Search for products',
-            onTap: () => _openSearch(),
-          ),
+          SearchField(hint: 'Search for products', onTap: () => _openSearch()),
           const SizedBox(height: AppSpacing.xl),
 
           // Recently viewed, with images — the products this tab is about.
@@ -206,15 +200,17 @@ class _RecentStrip extends StatelessWidget {
                     product.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const Spacer(),
                   if (product.price != null)
                     Text(
                       formatUsd(product.price!),
-                      style: theme.textTheme.labelLarge
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                 ],
               ),
@@ -253,8 +249,9 @@ class _SearchHistoryRow extends StatelessWidget {
             ),
             Text(
               formatRelative(entry.searchedAt),
-              style: theme.textTheme.labelSmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(width: AppSpacing.xs),
             Icon(Icons.north_west, size: 16, color: scheme.onSurfaceVariant),
