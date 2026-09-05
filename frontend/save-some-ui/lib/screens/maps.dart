@@ -4,7 +4,6 @@ import 'package:save_some_ui/models/models.dart';
 import 'package:save_some_ui/screens/retailer_detail.dart';
 import 'package:save_some_ui/services/app_services.dart';
 import 'package:save_some_ui/theme/tokens.dart';
-import 'package:save_some_ui/widgets/cards/store.dart';
 import 'package:save_some_ui/widgets/common/app_card.dart';
 import 'package:save_some_ui/widgets/common/avatar_badge.dart';
 import 'package:save_some_ui/widgets/common/retailer_products_sheet.dart';
@@ -30,9 +29,6 @@ class _MapsScreenState extends State<MapsScreen> {
   final _services = AppServices.instance;
 
   late Future<_MapsData> _data;
-
-  /// Which retailer's stores are expanded. Null shows the summary grid.
-  String? _expandedRetailerId;
 
   @override
   void initState() {
@@ -128,7 +124,6 @@ class _MapsScreenState extends State<MapsScreen> {
 
         final data = snapshot.data!;
         final grouped = data.groupedByRetailer();
-        final expanded = _expandedRetailerId;
 
         return RefreshIndicator(
           onRefresh: _refresh,
@@ -156,41 +151,8 @@ class _MapsScreenState extends State<MapsScreen> {
                 _RetailerGrid(
                   groups: grouped,
                   followedIds: data.followedIds,
-                  expandedRetailerId: expanded,
-                  onSelect: (group) => setState(() {
-                    _expandedRetailerId =
-                        expanded == group.retailer.id ? null : group.retailer.id;
-                  }),
-                  onShowProducts: (group) => _showProducts(group.retailer),
+                  onSelect: (group) => _showProducts(group.retailer),
                 ),
-
-              // The selected retailer's actual stores, nearest first.
-              if (expanded != null) ...[
-                const SizedBox(height: AppSpacing.lg),
-                ...(() {
-                  final group = grouped.firstWhere(
-                    (g) => g.retailer.id == expanded,
-                    orElse: () => grouped.first,
-                  );
-                  return [
-                    SectionHeader('${group.retailer.name} near you'),
-                    for (final store in group.stores.take(5))
-                      StoreCard(
-                        store: store,
-                        retailerName: group.retailer.name,
-                        onTap: () => _showProducts(group.retailer),
-                      ),
-                    if (group.stores.length > 5)
-                      Text(
-                        '+ ${group.stores.length - 5} more',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color:
-                                  Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                      ),
-                  ];
-                })(),
-              ],
 
               const SizedBox(height: AppSpacing.xl),
               const SectionHeader('See Stores Nearby'),
@@ -201,12 +163,7 @@ class _MapsScreenState extends State<MapsScreen> {
                   child: MapView(
                     centerLat: data.anchorLat,
                     centerLng: data.anchorLng,
-                    // Plot only what's on screen when a retailer is selected.
-                    stores: expanded == null
-                        ? data.stores
-                        : data.stores
-                            .where((s) => s.retailerId == expanded)
-                            .toList(),
+                    stores: data.stores,
                   ),
                 ),
               ),
@@ -224,16 +181,16 @@ class _MapsScreenState extends State<MapsScreen> {
 class _RetailerGrid extends StatelessWidget {
   final List<_RetailerStores> groups;
   final Set<String> followedIds;
-  final String? expandedRetailerId;
+
+  /// Tapping a retailer opens its products in a sheet — the one behaviour,
+  /// rather than tap-to-expand plus long-press-for-products, which gave the same
+  /// tile two meanings and made neither discoverable.
   final void Function(_RetailerStores) onSelect;
-  final void Function(_RetailerStores) onShowProducts;
 
   const _RetailerGrid({
     required this.groups,
     required this.followedIds,
-    required this.expandedRetailerId,
     required this.onSelect,
-    required this.onShowProducts,
   });
 
   @override
@@ -246,9 +203,7 @@ class _RetailerGrid extends StatelessWidget {
           _RetailerTile(
             group: group,
             followed: followedIds.contains(group.retailer.id),
-            selected: expandedRetailerId == group.retailer.id,
             onTap: () => onSelect(group),
-            onLongPress: () => onShowProducts(group),
           ),
       ],
     );
@@ -258,16 +213,12 @@ class _RetailerGrid extends StatelessWidget {
 class _RetailerTile extends StatelessWidget {
   final _RetailerStores group;
   final bool followed;
-  final bool selected;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
 
   const _RetailerTile({
     required this.group,
     required this.followed,
-    required this.selected,
     required this.onTap,
-    required this.onLongPress,
   });
 
   @override
@@ -311,9 +262,8 @@ class _RetailerTile extends StatelessWidget {
               group.retailer.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium?.copyWith(
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              ),
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
             ),
             Text(
               nearest == null
