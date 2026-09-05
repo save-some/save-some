@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:save_some_ui/config/env.dart';
+import 'package:save_some_ui/services/app_services.dart';
+import 'package:save_some_ui/state/recently_viewed.dart';
 
 /// Who is signed in, for the whole app.
 ///
@@ -50,6 +52,8 @@ class AppSession extends ChangeNotifier {
     _authSubscription = auth.onAuthStateChange.listen((data) {
       final next = data.session?.user.id;
       if (next == _userId) return;
+      // Switching accounts must not inherit the previous user's caches.
+      _clearUserScopedState();
       _userId = next;
       notifyListeners();
     });
@@ -65,6 +69,11 @@ class AppSession extends ChangeNotifier {
 
   /// Clears the session. With Supabase configured this also revokes it server
   /// side; without it, dropping the local id is the whole of signing out.
+  ///
+  /// Also drops per-user caches. They live in process-wide singletons, so
+  /// without this the next person to sign in on the same device saw the previous
+  /// user's tracked products and browsing history — rebuilding the widget tree
+  /// doesn't touch them.
   Future<void> signOut() async {
     if (supabaseReady) {
       try {
@@ -73,9 +82,20 @@ class AppSession extends ChangeNotifier {
         debugPrint('save-some: Supabase signOut failed ($error) — clearing locally.');
       }
     }
+    _clearUserScopedState();
     if (_userId == null) return;
     _userId = null;
     notifyListeners();
+  }
+
+  /// Forgets everything scoped to whoever was signed in.
+  ///
+  /// Called on sign-out and whenever the signed-in id changes, since Supabase
+  /// can swap users without passing through sign-out (a magic link opened while
+  /// another account is active, for instance).
+  void _clearUserScopedState() {
+    AppServices.instance.watchlist.clear();
+    RecentlyViewed.instance.clear();
   }
 
   @override

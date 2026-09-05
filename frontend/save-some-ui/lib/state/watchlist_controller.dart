@@ -38,6 +38,19 @@ class WatchlistController extends ChangeNotifier {
   /// disable the control without blocking the rest of the list.
   bool isBusy(String productId) => _inFlight.contains(productId);
 
+  /// Forgets everything. Called when the signed-in user changes — this is a
+  /// process-wide singleton, so without it one user's tracked products would show
+  /// up under the next user's account.
+  void clear() {
+    if (_productIds.isEmpty && _products.isEmpty && !_loaded) return;
+    _productIds.clear();
+    _inFlight.clear();
+    _products = const [];
+    _loaded = false;
+    _error = null;
+    notifyListeners();
+  }
+
   Future<void> load(String userId) async {
     try {
       final rows = await _users.fetchWatchlist(userId);
