@@ -32,6 +32,7 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final _services = AppServices.instance;
+  final _nameController = TextEditingController();
   final _zipController = TextEditingController();
   final _pageController = PageController();
 
@@ -54,18 +55,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   void dispose() {
+    _nameController.dispose();
     _zipController.dispose();
     _pageController.dispose();
     super.dispose();
   }
 
   Future<_OnboardingOptions> _loadOptions() async {
-    final retailers = await _services.retailers.fetchAll();
-    final categories = await _services.categories.fetchAll();
-    return _OnboardingOptions(retailers: retailers, categories: categories);
+    // Independent, so fetched together.
+    final retailers = _services.retailers.fetchAll();
+    final categories = _services.categories.fetchAll();
+    return _OnboardingOptions(
+      retailers: await retailers,
+      categories: await categories,
+    );
   }
 
+  String get _name => _nameController.text.trim();
   String get _zip => _zipController.text.trim();
+
+  String? get _nameError {
+    if (!_attempted) return null;
+    // profiles.display_name is NOT NULL and the home screen greets by it.
+    if (_name.isEmpty) return 'What should we call you?';
+    return null;
+  }
 
   /// US ZIPs only, which is what the store data covers.
   String? get _zipError {
@@ -76,7 +90,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   bool get _canAdvance => switch (_step) {
-        0 => _zipError == null && _zip.isNotEmpty,
+        0 => _nameError == null && _name.isNotEmpty &&
+             _zipError == null && _zip.isNotEmpty,
         // Deliberately permissive: picking nothing is a valid answer, and
         // blocking on it would trap someone who just wants in.
         _ => true,
@@ -115,6 +130,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     try {
       await _services.users.completeOnboarding(
         widget.userId,
+        displayName: _name,
         zipcode: _zip,
         retailerIds: _retailerIds,
         interestIds: _interestIds,
@@ -174,18 +190,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     physics: const NeverScrollableScrollPhysics(),
                     children: [
                       _Step(
-                        title: 'Where do you shop?',
-                        blurb: 'Your ZIP code is how we find stores and prices '
-                            'near you.',
-                        child: AppTextField(
-                          controller: _zipController,
-                          hint: 'ZIP code',
-                          icon: Icons.location_on_outlined,
-                          keyboardType: TextInputType.number,
-                          isIdentifier: true,
-                          errorText: _zipError,
-                          onChanged: (_) => setState(() {}),
-                          onSubmitted: (_) => _next(),
+                        title: 'Let\'s start with you',
+                        blurb: 'A name for your account, and the ZIP code we '
+                            'should look for stores and prices around.',
+                        child: Column(
+                          children: [
+                            AppTextField(
+                              controller: _nameController,
+                              hint: 'your name',
+                              icon: Icons.person_outline,
+                              textInputAction: TextInputAction.next,
+                              errorText: _nameError,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            AppTextField(
+                              controller: _zipController,
+                              hint: 'ZIP code',
+                              icon: Icons.location_on_outlined,
+                              keyboardType: TextInputType.number,
+                              isIdentifier: true,
+                              textInputAction: TextInputAction.done,
+                              errorText: _zipError,
+                              onChanged: (_) => setState(() {}),
+                              onSubmitted: (_) => _next(),
+                            ),
+                          ],
                         ),
                       ),
                       _Step(

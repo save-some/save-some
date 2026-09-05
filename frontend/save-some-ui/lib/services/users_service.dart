@@ -40,11 +40,13 @@ class UsersService {
   /// retailer and interest picks in one call.
   Future<User> completeOnboarding(
     String userId, {
+    required String displayName,
     required String zipcode,
     required Set<String> retailerIds,
     required Set<String> interestIds,
   }) async {
     final json = await _client.post('/v1/onboarding/$userId', body: {
+      'display_name': displayName,
       'zipcode': zipcode,
       'retailers': retailerIds.toList(),
       'interests': interestIds.toList(),

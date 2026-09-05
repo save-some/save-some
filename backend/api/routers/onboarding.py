@@ -23,6 +23,10 @@ def onboard(user_id: str, body: OnboardingRequest):
     if not body.zipcode.strip():
         raise HTTPException(status_code=422, detail="A zipcode is required")
 
+    name = (body.display_name or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="A name is required")
+
     with get_db_handle() as conn:
         profile = complete_onboarding(
             conn,
@@ -30,6 +34,7 @@ def onboard(user_id: str, body: OnboardingRequest):
             zipcode = body.zipcode.strip(),
             retailer_ids = [str(r) for r in body.retailers],
             interest_ids = [str(c) for c in body.interests],
+            display_name = name,
         )
     if profile is None:
         raise HTTPException(status_code=500, detail="Could not save the profile")
