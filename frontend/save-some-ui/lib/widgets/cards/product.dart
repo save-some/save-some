@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
+
 import 'package:save_some_ui/models/models.dart';
+import 'package:save_some_ui/theme/tokens.dart';
+import 'package:save_some_ui/util/format.dart';
+import 'package:save_some_ui/widgets/common/app_card.dart';
+import 'package:save_some_ui/widgets/common/avatar_badge.dart';
+import 'package:save_some_ui/widgets/common/product_thumb.dart';
+import 'package:save_some_ui/widgets/common/save_button.dart';
 
 /// One horizontal product card, used everywhere a Product is shown —
 /// Home's trending list, the Products page's browse list and "Your
@@ -12,33 +19,41 @@ import 'package:save_some_ui/models/models.dart';
 ///     the brand if present (search results / bare products)
 ///   - price present         -> shows price, with the original struck
 ///     through if it's a discount
-///   - targetPrice present (and no price) -> shows the watchlist alert
-///     threshold instead
+///   - targetPrice present   -> also shows the watchlist alert threshold
 class ProductCard extends StatelessWidget {
   final Product product;
-  const ProductCard({super.key, required this.product});
+
+  /// Tapping the card, e.g. to open price history and retailer comparison.
+  final VoidCallback? onTap;
+
+  /// Set to show a bookmark control. Off for lists where saving makes no sense.
+  final bool showSaveButton;
+
+  const ProductCard({
+    super.key,
+    required this.product,
+    this.onTap,
+    this.showSaveButton = true,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     final hasRetailer = (product.retailerName?.isNotEmpty ?? false);
     final headline = hasRetailer ? product.retailerName! : product.name;
     final subtitle = hasRetailer ? product.name : product.brand;
-    final avatarLetter = headline.isNotEmpty ? headline[0] : '?';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 0,
-      color: Colors.grey[100],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: AppCard(
+        onTap: onTap,
         child: Row(
           children: [
-            CircleAvatar(
-              backgroundColor: Colors.deepPurple[100],
-              child: Text(avatarLetter, style: const TextStyle(color: Colors.deepPurple)),
-            ),
-            const SizedBox(width: 12),
+            // Only try a logo when the headline actually is a retailer.
+            AvatarBadge(source: headline, preferLogo: hasRetailer),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,41 +62,35 @@ class ProductCard extends StatelessWidget {
                     headline,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleSmall,
                   ),
-                  if (subtitle != null) ...[
+                  if (subtitle != null && subtitle.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[700]),
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                   ],
-                  if (product.price != null) ...[
-                    const SizedBox(height: 4),
-                    _PriceRow(price: product.price!, originalPrice: product.originalPrice),
-                  ] else if (product.targetPrice != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Alert below \$${product.targetPrice!.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.deepPurple, fontSize: 12),
-                    ),
+                  if (product.price != null || product.targetPrice != null) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    _PriceLine(product: product),
                   ],
                 ],
               ),
             ),
-            if (product.imageUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  product.imageUrl!,
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported),
-                ),
-              ),
+            const SizedBox(width: AppSpacing.sm),
+            ProductThumb(
+              seed: product.id,
+              productName: product.name,
+              imageUrl: product.imageUrl,
+            ),
+            if (showSaveButton) ...[
+              const SizedBox(width: AppSpacing.xs),
+              SaveButton(product: product),
+            ],
           ],
         ),
       ),
@@ -89,28 +98,119 @@ class ProductCard extends StatelessWidget {
   }
 }
 
-class _PriceRow extends StatelessWidget {
-  final double price;
-  final double? originalPrice;
-  const _PriceRow({required this.price, this.originalPrice});
+/// Price, discount and alert threshold on one line, in that priority order.
+class _PriceLine extends StatelessWidget {
+  final Product product;
+
+  const _PriceLine({required this.product});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final price = product.price;
+    final target = product.targetPrice;
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: AppSpacing.sm,
+      children: [
+        if (price != null)
+          Text(
+            formatUsd(price),
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        if (product.isDiscounted)
+          Text(
+            formatUsd(product.originalPrice!),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+              decoration: TextDecoration.lineThrough,
+              decorationColor: scheme.onSurfaceVariant,
+            ),
+          ),
+        if (product.isDiscounted) _SavingBadge(product: product),
+        // Only worth saying when the headline isn't already the retailer —
+        // "Walmart / 65\" TV / $497.99 at Walmart" reads as a stutter.
+        if (price != null &&
+            product.priceRetailerName != null &&
+            (product.retailerName == null || product.retailerName!.isEmpty))
+          Text(
+            'at ${product.priceRetailerName}',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        if (target != null)
+          Text(
+            // Now shown alongside the price rather than instead of it: a tracked
+            // product has both, and hiding the price was the reason watchlist
+            // rows looked priceless.
+            'alert ${formatUsd(target)}',
+            style: theme.textTheme.bodySmall?.copyWith(color: scheme.primary),
+          ),
+      ],
+    );
+  }
+}
+
+/// "save $152.00" — the point of the app, so it gets emphasis.
+class _SavingBadge extends StatelessWidget {
+  final Product product;
+
+  const _SavingBadge({required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final saving = product.originalPrice! - product.price!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        'save ${formatUsd(saving)}',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.onSecondaryContainer,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+/// Current price with the pre-discount price struck through beside it. Kept as a
+/// public widget because the history screen's detail card reuses it in its header.
+class PriceRow extends StatelessWidget {
+  final double price;
+  final double? originalPrice;
+
+  const PriceRow({super.key, required this.price, this.originalPrice});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final isDiscounted = originalPrice != null && originalPrice! > price;
+
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '\$${price.toStringAsFixed(2)}',
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          formatUsd(price),
+          style: theme.textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.w700),
         ),
         if (isDiscounted) ...[
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpacing.sm),
           Text(
-            '\$${originalPrice!.toStringAsFixed(2)}',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[500],
+            formatUsd(originalPrice!),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
               decoration: TextDecoration.lineThrough,
+              decorationColor: scheme.onSurfaceVariant,
             ),
           ),
         ],

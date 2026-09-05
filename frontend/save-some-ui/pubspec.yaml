@@ -1,5 +1,5 @@
 name: save_some_ui
-description: "A new Flutter project."
+description: "Track prices across retailers and save some money."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -38,6 +38,10 @@ dependencies:
   flutter_dotenv: ^6.0.0
   supabase_flutter: ^2.12.0
   mapbox_maps_flutter: ^2.21.0
+  # Used directly by lib/services/api_client.dart. It previously resolved only
+  # as a transitive dependency of supabase_flutter, which meant any change to
+  # that package's own dependencies could have broken our build.
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:
@@ -58,16 +62,29 @@ flutter:
 
   uses-material-design: true
   assets:
+      # Loaded by flutter_dotenv. Must exist for the build to succeed even when
+      # empty — copy .env.example to .env. Values are all optional; see
+      # lib/main.dart, which degrades gracefully when they're absent.
       - .env
       - assets/google-logo.svg
       - assets/microsoft-logo.svg
       - assets/github-logo.svg
       - assets/apple-173-logo.svg
       - assets/wallet-logo.svg
+      # Retailer marks for the circle on every retailer row. Brand-accurate where
+      # the logo is geometry, brand-coloured monograms otherwise; drop official
+      # artwork in here to replace them. See widgets/common/retailer_logo.dart.
+      - assets/logos/
 
-    # The following line ensures that the Material Icons font is
-    # included with your application, so that you can use the icons in
-    # the material Icons class.
+  fonts:
+    # Used for the SAVE SOME wordmark and display headings. The design's
+    # wordmark is a very heavy condensed grotesque; the platform default has
+    # nothing close, so this one family is bundled. Body text intentionally
+    # stays on the platform font, which already matches the design.
+    - family: ArchivoBlack
+      fonts:
+        - asset: assets/fonts/ArchivoBlack-Regular.ttf
+          weight: 900
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -19,7 +19,10 @@ class Category (BaseModel):
 class Retailer (BaseModel):
     id: UUID
     name: str
-    website_url: Optional[str] = None
+    # Matches the retailers.website column. Naming this website_url instead
+    # made the field drop silently from every response, since Pydantic found
+    # no such key on the row.
+    website: Optional[str] = None
     created_at: datetime
 
 
@@ -51,6 +54,10 @@ class Product (BaseModel):
 	# Optional context for a product
 	retailer_id: Optional[UUID] = None
 	retailer_name: Optional[str] = None
+	# Which retailer the `price` below belongs to, when it was chosen as the
+	# cheapest across several. Separate from retailer_name so a watchlist row
+	# still leads with the product rather than a shop.
+	price_retailer_name: Optional[str] = None
 	price: Optional[float] = None
 	original_price: Optional[float] = None
 	target_price: Optional[float] = None
@@ -101,12 +108,42 @@ class OnboardingRequest(BaseModel):
     zipcode: str
     retailers: List[UUID]
     interests: List[UUID]
+    # profiles.display_name is NOT NULL and the home screen greets by it, so
+    # without this every onboarded user was called "Shopper".
+    display_name: Optional[str] = None
  
  
 
-# History stuff ... 
- 
+# History stuff ...
+
 class SearchHistoryEntry(BaseModel):
     id: UUID
     query: str
     searched_at: datetime
+
+
+# Comparison stuff ...
+
+class ProductOffer (BaseModel):
+    """
+    One retailer's current offer for a product, for the cross-retailer
+    comparison. price is nullable: a retailer can stock a product with no price
+    observation yet, and the UI says "price unknown" rather than hiding it.
+    """
+    retailer_id: UUID
+    retailer_name: str
+    website: Optional[str] = None
+    retailer_product_id: UUID
+    product_url: Optional[str] = None
+    price: Optional[float] = None
+    original_price: Optional[float] = None
+    in_stock: Optional[bool] = None
+    scraped_at: Optional[datetime] = None
+
+
+# Watchlist stuff ...
+
+class WatchlistItemRequest(BaseModel):
+    product_id: UUID
+    target_price: Optional[float] = None   # notify once the price falls below this
+    notes: Optional[str] = None

@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query
 from helpers.db import (
-    retrieve_all_retailers, 
-    retrieve_products_for_retailer
+    retrieve_all_retailers,
+    retrieve_products_for_retailer,
+    retrieve_nearby_stores,
+    search_products_for_retailer
 )
 from api.models import Category, Product, Retailer, Store, User
 from typing import Optional, List, Dict
@@ -55,7 +57,7 @@ def retailer_locations(
     Feeds store pins to the MapBox view.
     """
     with get_db_handle() as conn:
-        return db.retrieve_nearby_stores(
+        return retrieve_nearby_stores(
             conn, lat = lat, lng = lng, retailer_ids = retailer_ids, radius_miles = radius_miles
         )
  

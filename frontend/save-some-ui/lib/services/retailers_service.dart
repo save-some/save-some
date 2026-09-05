@@ -30,4 +30,26 @@ class RetailersService {
     final json = await _client.getRaw(buffer.toString());
     return (json as List).map((p) => Product.fromJson(p as Map<String, dynamic>)).toList();
   }
+
+  /// GET /v1/retailers/locations — store pins and the nearby-stores list on the
+  /// maps screen. Results come back nearest-first with distance_miles computed
+  /// per request.
+  Future<List<Store>> fetchNearbyStores({
+    required double lat,
+    required double lng,
+    double radiusMiles = 25,
+    Set<String>? retailerIds,
+  }) async {
+    // Same repeated-key problem as fetchProducts.
+    final buffer = StringBuffer(
+      '/v1/retailers/locations?lat=$lat&lng=$lng&radius_miles=$radiusMiles',
+    );
+    if (retailerIds != null) {
+      for (final id in retailerIds) {
+        buffer.write('&retailer_ids=$id');
+      }
+    }
+    final json = await _client.getRaw(buffer.toString());
+    return (json as List).map((s) => Store.fromJson(s as Map<String, dynamic>)).toList();
+  }
 }
