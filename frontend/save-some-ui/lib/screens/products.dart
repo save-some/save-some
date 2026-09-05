@@ -24,7 +24,6 @@ class _ProductScreenState extends State<ProductScreen> {
   final _services = AppServices.instance;
 
   late Future<List<Retailer>> _retailers;
-  late Future<List<Product>> _watchlist;
   late Future<List<Product>> _browseProducts;
 
   final Set<String> _selectedRetailerIds = {};
@@ -33,8 +32,14 @@ class _ProductScreenState extends State<ProductScreen> {
   void initState() {
     super.initState();
     _retailers = _services.retailers.fetchAll();
-    _watchlist = _services.users.fetchWatchlist(widget.userId);
     _browseProducts = _services.retailers.fetchProducts();
+    // "Your Products" reads the shared controller rather than fetching its own
+    // copy — otherwise untracking something on another tab left it visible here
+    // until a manual refresh, which is the exact disagreement the controller
+    // exists to prevent.
+    if (!_services.watchlist.isLoaded) {
+      _services.watchlist.load(widget.userId);
+    }
   }
 
   void _toggleRetailer(String retailerId) {
@@ -52,13 +57,16 @@ class _ProductScreenState extends State<ProductScreen> {
   Future<void> _refresh() async {
     setState(() {
       _retailers = _services.retailers.fetchAll();
-      _watchlist = _services.users.fetchWatchlist(widget.userId);
       _browseProducts = _services.retailers.fetchProducts(
         retailerIds:
             _selectedRetailerIds.isEmpty ? null : _selectedRetailerIds,
       );
     });
-    await Future.wait([_retailers, _watchlist, _browseProducts]);
+    await Future.wait([
+      _retailers,
+      _browseProducts,
+      _services.watchlist.load(widget.userId),
+    ]);
   }
 
   void _openSearch() {
@@ -117,18 +125,19 @@ class _ProductScreenState extends State<ProductScreen> {
           ),
           const SizedBox(height: AppSpacing.xl),
           const SectionHeader('Your Products'),
-          FutureBuilder<List<Product>>(
-            future: _watchlist,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
+          ListenableBuilder(
+            listenable: _services.watchlist,
+            builder: (context, _) {
+              final watchlist = _services.watchlist;
+              if (watchlist.error != null) {
                 return AppErrorState(
                   message: 'Couldn\'t load your tracked products.',
-                  error: snapshot.error,
+                  error: watchlist.error,
                   onRetry: _refresh,
                 );
               }
-              if (!snapshot.hasData) return const AppLoading(compact: true);
-              if (snapshot.data!.isEmpty) {
+              if (!watchlist.isLoaded) return const AppLoading(compact: true);
+              if (watchlist.products.isEmpty) {
                 return const AppEmptyState(
                   message: 'Nothing tracked yet',
                   icon: Icons.bookmark_border,
@@ -136,7 +145,7 @@ class _ProductScreenState extends State<ProductScreen> {
               }
               return Column(
                 children: [
-                  for (final product in snapshot.data!)
+                  for (final product in watchlist.products)
                     ProductCard(
                       product: product,
                       onTap: () => _openProduct(product),
