@@ -1,0 +1,62 @@
+# The API, and a Postgres to point it at.
+#
+# The database is included because the API is useless without one and the whole
+# point of `make start` is that it works from a clean checkout. To use Supabase
+# or a Postgres on the host instead, set DATABASE_URL in .env and start only the
+# api service: `docker compose up api`.
+
+name: save-some
+
+services:
+  api:
+    build:
+      context: ./backend
+    image: save-some-api:latest
+    container_name: save-some-api
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      # Points at the db service below unless overridden. host.docker.internal
+      # is the escape hatch for a Postgres running on the host.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://save_some:save_some_local@db:5432/save_some}
+    env_file:
+      # Optional: supplies SUPABASE_* and any DB_* overrides. Compose errors on a
+      # missing env_file unless it's marked not required.
+      - path: ./backend/.env
+        required: false
+    depends_on:
+      db:
+        # Waits for Postgres to accept connections, not merely to have started —
+        # api/utils.py connects lazily per request, but a first request during
+        # startup would otherwise fail.
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: save-some-db
+    environment:
+      POSTGRES_USER: save_some
+      POSTGRES_PASSWORD: save_some_local
+      POSTGRES_DB: save_some
+    ports:
+      # Published so psql and the seed scripts can reach it from the host.
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # Everything in initdb.d runs once, in filename order, on an empty volume.
+      # The numeric prefixes are what enforce local_dev -> schema -> additions ->
+      # seed, which matters because schema.sql references auth.users.
+      - ./backend/schema/local_dev.sql:/docker-entrypoint-initdb.d/10-local-dev.sql:ro
+      - ./backend/schema/schema.sql:/docker-entrypoint-initdb.d/20-schema.sql:ro
+      - ./backend/schema/api_additions.sql:/docker-entrypoint-initdb.d/30-api-additions.sql:ro
+      - ./backend/seed/local_seed.sql:/docker-entrypoint-initdb.d/40-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U save_some -d save_some"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  db-data:
