@@ -9,6 +9,7 @@ import 'package:save_some_ui/widgets/common/avatar_badge.dart';
 import 'package:save_some_ui/widgets/common/retailer_products_sheet.dart';
 import 'package:save_some_ui/widgets/common/section_header.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
+import 'package:save_some_ui/services/zip_service.dart';
 import 'package:save_some_ui/widgets/map/map_view.dart';
 import 'package:save_some_ui/state/data_revision.dart';
 
@@ -39,6 +40,7 @@ class MapsScreen extends StatefulWidget {
 
 class _MapsScreenState extends State<MapsScreen> with RevisionAware {
   final _services = AppServices.instance;
+  final _zip = ZipService();
 
   late Future<_MapsData> _data;
 
@@ -54,8 +56,8 @@ class _MapsScreenState extends State<MapsScreen> with RevisionAware {
     // before the tab could render anything.
     final retailersFuture = _services.retailers.fetchAll();
     final followedFuture = _services.users.fetchRetailers(widget.userId);
-    // The profile's zipcode is the geo anchor. Server-side geocoding would be
-    // better than a lookup table, but the zipcode is what we reliably have.
+    // The profile's zipcode is the geo anchor; it is resolved to coordinates
+    // live (see _anchorFor), never assumed.
     final zipcodeFuture = _services.users.fetchZipcode(widget.userId);
 
     final allRetailers = await retailersFuture;
@@ -63,7 +65,7 @@ class _MapsScreenState extends State<MapsScreen> with RevisionAware {
     final zipcode = await zipcodeFuture;
 
     // This one genuinely depends on the zipcode, so it stays sequential.
-    final anchor = _anchorFor(zipcode);
+    final anchor = await _anchorFor(zipcode);
     final stores = await _services.retailers.fetchNearbyStores(
       lat: anchor.lat,
       lng: anchor.lng,
@@ -83,19 +85,28 @@ class _MapsScreenState extends State<MapsScreen> with RevisionAware {
 
   /// Zipcode to a query anchor, its radius and an honest heading label.
   ///
-  /// A small table rather than a geocoding call: the store data currently
-  /// covers a handful of metros (whatever has been imported via
-  /// seed/import_osm_stores.py --zip… so anything else has nothing to show.
-  /// Crucially, unknown ZIPs are labelled as the demo area they're being
-  /// served from — before, a Chicago ZIP got a page titled "Near 60601"
-  /// full of Hoboken stores 700 miles away.
-  static _Anchor _anchorFor(String? zipcode) {
+  /// The ZIP is geocoded live via Zippopotam — any US ZIP gets its own
+  /// coordinates, so the heading and the search box genuinely match the place
+  /// the user typed. Whether stores exist there is a data question the empty
+  /// state answers (run `seed/import_osm_stores.py --zip <ZIP>`). The small
+  /// table is only an offline fallback if the geocoder is unreachable, and
+  /// even then the heading admits it is the demo area rather than borrowing
+  /// the user's ZIP as a label — a Chicago ZIP once rendered a page titled
+  /// "Near 60601" full of Hoboken stores 700 miles away.
+  Future<_Anchor> _anchorFor(String? zipcode) async {
+    if (zipcode != null && zipcode.isNotEmpty) {
+      final loc = await _zip.locate(zipcode);
+      if (loc != null) {
+        return _Anchor(loc.lat, loc.lng, 25, 'Near ${loc.label ?? zipcode}');
+      }
+    }
     const known = <String, (double, double)>{
       '07030': (40.7439, -74.0324), // Hoboken NJ
       '10001': (40.7484, -73.9967), // Manhattan
       '11201': (40.6940, -73.9903), // Brooklyn
       '11530': (40.7268, -73.6343), // Garden City NY
       '60601': (41.8819, -87.6278), // Chicago
+      '98105': (47.6682, -122.3324), // Seattle WA
     };
     final hit = known[zipcode];
     if (hit != null) {
