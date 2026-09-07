@@ -4,6 +4,7 @@ import 'package:save_some_ui/models/models.dart';
 import 'package:save_some_ui/screens/retailer_detail.dart';
 import 'package:save_some_ui/services/app_services.dart';
 import 'package:save_some_ui/theme/tokens.dart';
+import 'package:save_some_ui/theme/breakpoints.dart';
 import 'package:save_some_ui/widgets/common/app_card.dart';
 import 'package:save_some_ui/widgets/common/avatar_badge.dart';
 import 'package:save_some_ui/widgets/common/retailer_products_sheet.dart';
@@ -191,7 +192,9 @@ class _MapsScreenState extends State<MapsScreen> with RevisionAware {
               ClipRRect(
                 borderRadius: AppRadius.mdAll,
                 child: SizedBox(
-                  height: 300,
+                  // A 300px map on a 1900px window looks like a stamp; on a
+                  // phone the strip height is the design.
+                  height: WindowSize.of(context).browseColumns > 1 ? 440 : 300,
                   child: MapView(
                     centerLat: data.anchorLat,
                     centerLng: data.anchorLng,

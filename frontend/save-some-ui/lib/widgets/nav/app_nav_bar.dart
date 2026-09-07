@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:save_some_ui/theme/breakpoints.dart';
 import 'package:save_some_ui/theme/tokens.dart';
+import 'package:save_some_ui/widgets/brand/canvas_backdrop.dart';
 import 'package:save_some_ui/widgets/common/svg_asset.dart';
 
 /// The five destinations, defined once and shared by the bar and the rail so
@@ -53,7 +54,9 @@ class AppNavRail extends StatelessWidget {
       selectedIndex: selectedIndex,
       onDestinationSelected: onDestinationSelected,
       extended: extended,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      // Transparent so the shared CanvasBackdrop behind the shell shows
+      // through — an opaque rail would re-cut the page in two.
+      backgroundColor: Colors.transparent,
       indicatorColor: scheme.secondaryContainer,
       // With labels always visible the rail reads as a menu rather than a strip
       // of guessable glyphs.
@@ -92,26 +95,32 @@ class AppNavigation extends StatelessWidget {
     final window = WindowSize.of(context);
 
     if (!window.usesNavigationRail) {
-      return Scaffold(
-        body: SafeArea(child: body),
-        bottomNavigationBar: AppNavBar(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: onDestinationSelected,
+      return CanvasBackdrop(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(child: body),
+          bottomNavigationBar: AppNavBar(
+            selectedIndex: selectedIndex,
+            onDestinationSelected: onDestinationSelected,
+          ),
         ),
       );
     }
 
-    return Scaffold(
-      body: SafeArea(
-        child: Row(
-          children: [
-            AppNavRail(
-              selectedIndex: selectedIndex,
-              onDestinationSelected: onDestinationSelected,
-              extended: window.usesExtendedRail,
-            ),
-            Expanded(child: body),
-          ],
+    return CanvasBackdrop(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Row(
+            children: [
+              AppNavRail(
+                selectedIndex: selectedIndex,
+                onDestinationSelected: onDestinationSelected,
+                extended: window.usesExtendedRail,
+              ),
+              Expanded(child: body),
+            ],
+          ),
         ),
       ),
     );
