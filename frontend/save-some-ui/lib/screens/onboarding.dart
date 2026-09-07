@@ -90,12 +90,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   bool get _canAdvance => switch (_step) {
-        0 => _nameError == null && _name.isNotEmpty &&
-             _zipError == null && _zip.isNotEmpty,
-        // Deliberately permissive: picking nothing is a valid answer, and
-        // blocking on it would trap someone who just wants in.
-        _ => true,
-      };
+    0 =>
+      _nameError == null &&
+          _name.isNotEmpty &&
+          _zipError == null &&
+          _zip.isNotEmpty,
+    // Deliberately permissive: picking nothing is a valid answer, and
+    // blocking on it would trap someone who just wants in.
+    _ => true,
+  };
 
   void _next() {
     setState(() => _attempted = true);
@@ -139,9 +142,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       widget.onComplete();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn\'t save that: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Couldn\'t save that: $error')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -166,7 +169,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               return AppErrorState(
                 message: 'Couldn\'t load the setup options.',
                 error: snapshot.error,
-                onRetry: () => setState(() => _options = _loadOptions()),
+                onRetry: () => setState(() {
+                  _options = _loadOptions();
+                }),
               );
             }
             if (!snapshot.hasData) return const AppLoading();
@@ -191,7 +196,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     children: [
                       _Step(
                         title: 'Let\'s start with you',
-                        blurb: 'A name for your account, and the ZIP code we '
+                        blurb:
+                            'A name for your account, and the ZIP code we '
                             'should look for stores and prices around.',
                         child: Column(
                           children: [
@@ -220,7 +226,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                       _Step(
                         title: 'Which stores?',
-                        blurb: 'Pick the ones you actually shop at. You can '
+                        blurb:
+                            'Pick the ones you actually shop at. You can '
                             'change this any time.',
                         child: FilterChipGroup(
                           options: [
@@ -235,7 +242,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                       _Step(
                         title: 'What are you after?',
-                        blurb: 'We\'ll lead with price drops in these '
+                        blurb:
+                            'We\'ll lead with price drops in these '
                             'categories.',
                         child: FilterChipGroup(
                           options: [
@@ -304,8 +312,9 @@ class _Step extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Text(
             blurb,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: AppSpacing.xl),
           child,

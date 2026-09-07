@@ -42,7 +42,14 @@ class _HomeContentState extends State<HomeContent> {
 
   Future<void> _refresh() async {
     final next = AppServices.instance.home.load(widget.userId);
-    setState(() => _homeData = next);
+    // Block body, not an arrow: `() => _homeData = next` returns the Future,
+    // and setState throws with "callback argument returned a Future" in debug
+    // builds — the field updates but no rebuild is scheduled, so the home
+    // screen stayed on the onboarding gate after a successful submit. Release
+    // builds compile the assert away, which is why only `flutter run` saw it.
+    setState(() {
+      _homeData = next;
+    });
     await next;
   }
 
@@ -133,10 +140,8 @@ class _HomeContentState extends State<HomeContent> {
   void _openProduct(Product product) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ProductDetailScreen(
-          userId: widget.userId,
-          product: product,
-        ),
+        builder: (_) =>
+            ProductDetailScreen(userId: widget.userId, product: product),
       ),
     );
   }
@@ -171,8 +176,9 @@ class _NeedsOnboardingState extends StatelessWidget {
               'Tell us your ZIP code and which stores you shop at, and we\'ll '
               'start tracking prices near you.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: AppSpacing.xl),
             PrimaryButton(

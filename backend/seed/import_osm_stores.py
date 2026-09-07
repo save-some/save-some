@@ -78,7 +78,18 @@ def fetch(query: str, attempts: int = 3):
             )
             with urllib.request.urlopen(request, timeout=120) as response:
                 return json.loads(response.read())
-        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as error:
+        except urllib.error.HTTPError as error:
+            last_error = error
+            # Only server-side and rate-limit failures are worth retrying; a 4xx
+            # like 400 (rejected query) will fail identically every attempt.
+            if error.code is not None and 400 <= error.code < 500 and error.code != 429:
+                raise SystemExit(f"overpass rejected the query ({error}); not retrying")
+            if attempt < attempts:
+                wait = 5 * attempt
+                print(f"  overpass failed ({error}); retrying in {wait}s")
+                time.sleep(wait)
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+            # JSONDecodeError covers Overpass answering an error page with 200.
             last_error = error
             if attempt < attempts:
                 wait = 5 * attempt
@@ -121,7 +132,10 @@ def connect():
     if not all(parts):
         raise SystemExit("set DATABASE_URL, or the DB_* variables")
     user, password, host, port, name = parts
-    return psycopg2.connect(f"postgresql://{user}:{password}@{host}:{port}/{name}")
+    # Keyword args, not an interpolated URI: passwords containing @:/?#  would
+    # silently reparse into a different host or fail with a confusing error.
+    return psycopg2.connect(host=host, port=int(port), user=user,
+                            password=password, dbname=name)
 
 
 def main() -> None:
@@ -136,9 +150,15 @@ def main() -> None:
     if args.metro:
         bbox, label = METROS[args.metro], args.metro
     elif args.bbox:
-        bbox = tuple(float(v) for v in args.bbox.split(","))
+        try:
+            bbox = tuple(float(v) for v in args.bbox.split(","))
+        except ValueError as error:
+            raise SystemExit(f"--bbox needs numeric values: {error}")
         if len(bbox) != 4:
             raise SystemExit("--bbox wants four comma-separated numbers")
+        if not (bbox[0] < bbox[2] and bbox[1] < bbox[3]):
+            raise SystemExit("--bbox wants south < north and west < east "
+                             "(order: south,west,north,east)")
         label = args.label or "custom"
     else:
         raise SystemExit("pass --metro or --bbox")
@@ -180,7 +200,9 @@ def main() -> None:
         if retailer is None:
             continue
         bucket = by_retailer.setdefault(str(retailer["id"]), [])
-        # ~110 m at these latitudes; close enough to be the same store.
+        # 0.001 deg of latitude is ~111 m; of longitude ~85 m at NYC latitudes.
+        # Close enough to be the same store, generous enough that real
+        # neighbouring stores (~1 km apart) are never collapsed.
         if any(abs(s["lat"] - store["lat"]) < 0.001
                and abs(s["lng"] - store["lng"]) < 0.001 for s in bucket):
             continue

@@ -122,7 +122,9 @@ class _SubmitProductScreenState extends State<SubmitProductScreen> {
                 return AppErrorState(
                   message: 'Couldn\'t load stores and categories.',
                   error: snapshot.error,
-                  onRetry: () => setState(() => _formData = _load()),
+                  onRetry: () => setState(() {
+                    _formData = _load();
+                  }),
                 );
               }
               if (!snapshot.hasData) return const AppLoading();

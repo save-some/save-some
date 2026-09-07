@@ -34,7 +34,9 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Future<void> _refresh() async {
     final next = AppServices.instance.users.fetchProfile(widget.userId);
-    setState(() => _profile = next);
+    setState(() {
+      _profile = next;
+    });
     await next;
   }
 
@@ -49,7 +51,7 @@ class _AccountScreenState extends State<AccountScreen> {
               // Be honest about what this does in a credential-less run, rather
               // than implying a real account is being signed out of.
               ? 'This run has no Supabase credentials, so you\'re signed in as the '
-                  'local development user. Signing out returns you to the log-in screen.'
+                    'local development user. Signing out returns you to the log-in screen.'
               : 'You\'ll need to sign in again to see your products.',
         ),
         actions: [
@@ -97,10 +99,10 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   static String _themeLabel(ThemeMode mode) => switch (mode) {
-        ThemeMode.system => 'Match device',
-        ThemeMode.light => 'Light',
-        ThemeMode.dark => 'Dark',
-      };
+    ThemeMode.system => 'Match device',
+    ThemeMode.light => 'Light',
+    ThemeMode.dark => 'Dark',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -198,9 +200,9 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   void _notImplemented(String what) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$what isn\'t wired up yet.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$what isn\'t wired up yet.')));
   }
 }
 
@@ -224,11 +226,7 @@ class _ProfileHeader extends StatelessWidget {
             color: scheme.primaryContainer,
             shape: BoxShape.circle,
           ),
-          child: Icon(
-            Icons.person,
-            size: 48,
-            color: scheme.onPrimaryContainer,
-          ),
+          child: Icon(Icons.person, size: 48, color: scheme.onPrimaryContainer),
         ),
         if (profile != null) ...[
           const SizedBox(height: AppSpacing.md),
@@ -236,8 +234,9 @@ class _ProfileHeader extends StatelessWidget {
           if (profile!.zipcode != null)
             Text(
               profile!.zipcode!,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: scheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
         ],
       ],
