@@ -7,6 +7,8 @@ import 'package:save_some_ui/services/products_service.dart';
 import 'package:save_some_ui/state/data_revision.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/cards/product.dart';
+import 'package:save_some_ui/widgets/common/page_width.dart';
+import 'package:save_some_ui/widgets/common/section_header.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
 
 /// Full-screen search UI, pushed on top of the current page by
@@ -50,6 +52,30 @@ class ProductSearchDelegate extends SearchDelegate<Product?> {
   void dispose() {
     _cancelPending();
     super.dispose();
+  }
+
+  /// SearchDelegate renders the query TextField as the AppBar title, so the
+  /// app's titleLarge + centerTitle heading style (right for page headings,
+  /// wrong for an input) showed the typed query as oversized text floating in
+  /// the middle of the bar. The delegate merges this ThemeData over the
+  /// ambient theme for its own bar — scope the title back to body text,
+  /// leading-aligned.
+  @override
+  ThemeData appBarTheme(BuildContext context) {
+    final base = super.appBarTheme(context);
+    final text = base.textTheme;
+    return base.copyWith(
+      appBarTheme: base.appBarTheme.copyWith(
+        centerTitle: false,
+        titleTextStyle: text.bodyLarge,
+      ),
+      // The TextField inherits the title style directly in some paths.
+      inputDecorationTheme: base.inputDecorationTheme.copyWith(
+        hintStyle: text.bodyLarge?.copyWith(
+          color: base.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
   }
 
   @override
@@ -123,10 +149,10 @@ class ProductSearchDelegate extends SearchDelegate<Product?> {
   Widget _resultsList(String q, {bool log = false}) {
     final trimmed = q.trim();
     if (trimmed.isEmpty) {
-      return const AppEmptyState(
-        message: 'Search for a product',
-        icon: Icons.search,
-      );
+      // An open search box with nothing typed is the best slot in the app
+      // for "start here": price drops inside the categories this user said
+      // they care about, instead of a dead prompt.
+      return userId == null ? _prompt : _recommendations();
     }
 
     return FutureBuilder<List<Product>>(
@@ -148,16 +174,58 @@ class ProductSearchDelegate extends SearchDelegate<Product?> {
             icon: Icons.search_off,
           );
         }
-        return ListView.builder(
-          padding: AppSpacing.pageAll,
-          itemCount: results.length,
-          itemBuilder: (context, i) => ProductCard(
-            product: results[i],
-            onTap: () {
-              final selected = results[i];
-              close(context, selected);
-              onSelect?.call(selected);
-            },
+        // The delegate's page is its own Scaffold — cap it like every other
+        // screen, or desktop gets cards stretched across 1440px again.
+        return PageWidth(
+          child: ListView.builder(
+            padding: AppSpacing.pageAll,
+            itemCount: results.length,
+            itemBuilder: (context, i) => ProductCard(
+              product: results[i],
+              onTap: () {
+                final selected = results[i];
+                close(context, selected);
+                onSelect?.call(selected);
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  static const _prompt = AppEmptyState(
+    message: 'Search for a product',
+    icon: Icons.search,
+  );
+
+  /// The empty-state body: one FutureBuilder over the interest-ranked drops,
+  /// rendered with the same card list as live results so a tap behaves the
+  /// same from either state. Failures degrade to the plain prompt rather
+  /// than an error page — this is a courtesy list, not the search.
+  Widget _recommendations() {
+    return FutureBuilder<List<Product>>(
+      future: productsService.fetchRecommended(userId!),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const AppLoading();
+        }
+        final picks = snapshot.data ?? const <Product>[];
+        if (snapshot.hasError || picks.isEmpty) return _prompt;
+        return PageWidth(
+          child: ListView(
+            padding: AppSpacing.pageAll,
+            children: [
+              const SectionHeader('Recommended for you', muted: true),
+              for (final p in picks.take(10))
+                ProductCard(
+                  product: p,
+                  onTap: () {
+                    close(context, p);
+                    onSelect?.call(p);
+                  },
+                ),
+            ],
           ),
         );
       },

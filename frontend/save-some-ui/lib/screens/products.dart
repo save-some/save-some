@@ -72,13 +72,19 @@ class _ProductScreenState extends State<ProductScreen> with RevisionAware {
   void onDataRevision() => _refresh();
 
   void _openSearch() {
-    showSearch(
+    // Tapping a result closes the delegate with that product; open its
+    // detail. The returned value used to be dropped — a result tap did
+    // nothing beyond dismissing the search.
+    showSearch<Product?>(
       context: context,
       delegate: ProductSearchDelegate(
         productsService: _services.products,
         userId: widget.userId,
       ),
-    );
+    ).then((product) {
+      if (product == null || !mounted) return;
+      _openProduct(product);
+    });
   }
 
   void _openProduct(Product product) {

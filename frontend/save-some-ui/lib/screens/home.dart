@@ -32,7 +32,7 @@ class HomeContent extends StatefulWidget {
 
 class _HomeContentState extends State<HomeContent> with RevisionAware {
   late Future<HomeData> _homeData;
-
+  bool _showAllTrending = false;
   @override
   void initState() {
     super.initState();
@@ -130,12 +130,32 @@ class _HomeContentState extends State<HomeContent> with RevisionAware {
                   message: 'No price drops to show yet',
                   icon: Icons.trending_down,
                 )
-              else
-                for (final product in data.trending)
+              else ...[
+                // Home is a springboard, not the whole feed: five drops and
+                // an explicit way to the rest.
+                for (final product
+                    in (_showAllTrending
+                        ? data.trending
+                        : data.trending.take(5)))
                   ProductCard(
                     product: product,
                     onTap: () => _openProduct(product),
                   ),
+                if (data.trending.length > 5)
+                  TextButton.icon(
+                    onPressed: () =>
+                        setState(() => _showAllTrending = !_showAllTrending),
+                    icon: Icon(
+                      _showAllTrending ? Icons.expand_less : Icons.expand_more,
+                      size: 18,
+                    ),
+                    label: Text(
+                      _showAllTrending
+                          ? 'Show less'
+                          : 'See all ${data.trending.length} price drops',
+                    ),
+                  ),
+              ],
             ],
           ),
         );

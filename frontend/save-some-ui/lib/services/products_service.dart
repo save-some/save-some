@@ -7,8 +7,29 @@ class ProductsService {
 
   /// GET /v1/products/trending
   Future<List<Product>> fetchTrending({int limit = 20}) async {
-    final json = await _client.get('/v1/products/trending', query: {'limit': limit});
-    return (json as List).map((p) => Product.fromJson(p as Map<String, dynamic>)).toList();
+    final json = await _client.get(
+      '/v1/products/trending',
+      query: {'limit': limit},
+    );
+    return (json as List)
+        .map((p) => Product.fromJson(p as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// GET /v1/products/recommended — price drops inside the user's interest
+  /// categories (falls back to trending when their picks have no prices yet).
+  /// Backs the empty search state.
+  Future<List<Product>> fetchRecommended(
+    String userId, {
+    int limit = 20,
+  }) async {
+    final json = await _client.get(
+      '/v1/products/recommended',
+      query: {'user_id': userId, 'limit': limit},
+    );
+    return (json as List)
+        .map((p) => Product.fromJson(p as Map<String, dynamic>))
+        .toList();
   }
 
   /// POST /v1/products/search — cross-retailer canonical product search,
@@ -25,13 +46,14 @@ class ProductsService {
     final path = userId == null
         ? '/v1/products/search'
         : '/v1/products/search?user_id=$userId';
-    final json = await _client.post(path, body: {
-      'query': query,
-      'limit': limit,
-      'offset': offset,
-    });
+    final json = await _client.post(
+      path,
+      body: {'query': query, 'limit': limit, 'offset': offset},
+    );
     final products = (json as Map<String, dynamic>)['products'] as List;
-    return products.map((p) => Product.fromJson(p as Map<String, dynamic>)).toList();
+    return products
+        .map((p) => Product.fromJson(p as Map<String, dynamic>))
+        .toList();
   }
 
   /// GET /v1/products/{id}/offers — every retailer carrying this product at its
@@ -54,10 +76,7 @@ class ProductsService {
   }) async {
     final json = await _client.get(
       '/v1/products/$productId/price-history',
-      query: {
-        'limit': limit,
-        'retailer_id': ?retailerId,
-      },
+      query: {'limit': limit, 'retailer_id': ?retailerId},
     );
     final prices = (json as List)
         .map((p) => ProductPrice.fromJson(p as Map<String, dynamic>))
