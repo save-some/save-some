@@ -7,6 +7,7 @@ import 'package:save_some_ui/widgets/common/app_text_field.dart';
 import 'package:save_some_ui/widgets/common/chip_group.dart';
 import 'package:save_some_ui/widgets/common/primary_button.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
+import 'package:save_some_ui/state/data_revision.dart';
 
 /// Three steps to a usable account: where you shop, which chains, what you care
 /// about.
@@ -139,6 +140,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         interestIds: _interestIds,
       );
       if (!mounted) return;
+      // The profile, interests and retailer picks just changed for this user;
+      // every tab holding user-scoped data must notice, not just the one that
+      // owns the completion callback.
+      DataRevision.instance.bump();
       widget.onComplete();
     } catch (error) {
       if (!mounted) return;

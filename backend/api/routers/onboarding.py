@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from uuid import UUID
 
 from helpers.db import complete_onboarding
 from api.models import OnboardingRequest, User
@@ -12,7 +13,7 @@ router = APIRouter (
 
 
 @router.post("/{user_id}", response_model = User, status_code = 201)
-def onboard(user_id: str, body: OnboardingRequest):
+def onboard(user_id: UUID, body: OnboardingRequest):
     """
     Create or update a profile and the user's picked retailers and interests.
 
@@ -30,7 +31,7 @@ def onboard(user_id: str, body: OnboardingRequest):
     with get_db_handle() as conn:
         profile = complete_onboarding(
             conn,
-            user_id,
+            str(user_id),
             zipcode = body.zipcode.strip(),
             retailer_ids = [str(r) for r in body.retailers],
             interest_ids = [str(c) for c in body.interests],

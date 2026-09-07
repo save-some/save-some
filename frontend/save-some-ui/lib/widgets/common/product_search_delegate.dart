@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:save_some_ui/models/models.dart';
 import 'package:save_some_ui/services/products_service.dart';
+import 'package:save_some_ui/state/data_revision.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/cards/product.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
@@ -53,18 +54,15 @@ class ProductSearchDelegate extends SearchDelegate<Product?> {
 
   @override
   List<Widget> buildActions(BuildContext context) => [
-        if (query.isNotEmpty)
-          IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: () => query = '',
-          ),
-      ];
+    if (query.isNotEmpty)
+      IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
+  ];
 
   @override
   Widget buildLeading(BuildContext context) => IconButton(
-        icon: const Icon(Icons.arrow_back),
-        onPressed: () => close(context, null),
-      );
+    icon: const Icon(Icons.arrow_back),
+    onPressed: () => close(context, null),
+  );
 
   @override
   void close(BuildContext context, Product? result) {
@@ -101,16 +99,19 @@ class ProductSearchDelegate extends SearchDelegate<Product?> {
 
     _debounce = Timer(const Duration(milliseconds: 300), () {
       if (_closed) return;
-      productsService.search(q, userId: log ? userId : null).then(
-        (results) {
-          _settled = true;
-          if (!completer.isCompleted) completer.complete(results);
-        },
-        onError: (Object error, StackTrace stack) {
-          _settled = true;
-          if (!completer.isCompleted) completer.completeError(error, stack);
-        },
-      );
+      productsService
+          .search(q, userId: log ? userId : null)
+          .then(
+            (results) {
+              _settled = true;
+              if (log) DataRevision.instance.bump();
+              if (!completer.isCompleted) completer.complete(results);
+            },
+            onError: (Object error, StackTrace stack) {
+              _settled = true;
+              if (!completer.isCompleted) completer.completeError(error, stack);
+            },
+          );
     });
     return completer.future;
   }

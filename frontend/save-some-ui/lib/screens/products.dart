@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:save_some_ui/models/models.dart';
 import 'package:save_some_ui/screens/product_detail.dart';
 import 'package:save_some_ui/services/app_services.dart';
+import 'package:save_some_ui/state/data_revision.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/cards/product.dart';
 import 'package:save_some_ui/widgets/common/chip_group.dart';
@@ -20,7 +21,7 @@ class ProductScreen extends StatefulWidget {
   State<ProductScreen> createState() => _ProductScreenState();
 }
 
-class _ProductScreenState extends State<ProductScreen> {
+class _ProductScreenState extends State<ProductScreen> with RevisionAware {
   final _services = AppServices.instance;
 
   late Future<List<Retailer>> _retailers;
@@ -48,8 +49,7 @@ class _ProductScreenState extends State<ProductScreen> {
         _selectedRetailerIds.add(retailerId);
       }
       _browseProducts = _services.retailers.fetchProducts(
-        retailerIds:
-            _selectedRetailerIds.isEmpty ? null : _selectedRetailerIds,
+        retailerIds: _selectedRetailerIds.isEmpty ? null : _selectedRetailerIds,
       );
     });
   }
@@ -58,8 +58,7 @@ class _ProductScreenState extends State<ProductScreen> {
     setState(() {
       _retailers = _services.retailers.fetchAll();
       _browseProducts = _services.retailers.fetchProducts(
-        retailerIds:
-            _selectedRetailerIds.isEmpty ? null : _selectedRetailerIds,
+        retailerIds: _selectedRetailerIds.isEmpty ? null : _selectedRetailerIds,
       );
     });
     await Future.wait([
@@ -68,6 +67,9 @@ class _ProductScreenState extends State<ProductScreen> {
       _services.watchlist.load(widget.userId),
     ]);
   }
+
+  @override
+  void onDataRevision() => _refresh();
 
   void _openSearch() {
     showSearch(
@@ -82,10 +84,8 @@ class _ProductScreenState extends State<ProductScreen> {
   void _openProduct(Product product) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ProductDetailScreen(
-          userId: widget.userId,
-          product: product,
-        ),
+        builder: (_) =>
+            ProductDetailScreen(userId: widget.userId, product: product),
       ),
     );
   }

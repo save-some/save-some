@@ -10,6 +10,18 @@ import 'package:save_some_ui/widgets/common/retailer_products_sheet.dart';
 import 'package:save_some_ui/widgets/common/section_header.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
 import 'package:save_some_ui/widgets/map/map_view.dart';
+import 'package:save_some_ui/state/data_revision.dart';
+
+/// A store-search anchor: coordinates, radius and the heading the Maps page
+/// is allowed to show for results from it.
+class _Anchor {
+  final double lat;
+  final double lng;
+  final double radiusMiles;
+  final String label;
+
+  const _Anchor(this.lat, this.lng, this.radiusMiles, this.label);
+}
 
 /// Which retailers are near you, and what they carry.
 ///
@@ -25,7 +37,7 @@ class MapsScreen extends StatefulWidget {
   State<MapsScreen> createState() => _MapsScreenState();
 }
 
-class _MapsScreenState extends State<MapsScreen> {
+class _MapsScreenState extends State<MapsScreen> with RevisionAware {
   final _services = AppServices.instance;
 
   late Future<_MapsData> _data;
@@ -53,36 +65,47 @@ class _MapsScreenState extends State<MapsScreen> {
     // This one genuinely depends on the zipcode, so it stays sequential.
     final anchor = _anchorFor(zipcode);
     final stores = await _services.retailers.fetchNearbyStores(
-      lat: anchor.$1,
-      lng: anchor.$2,
-      radiusMiles: 25,
+      lat: anchor.lat,
+      lng: anchor.lng,
+      radiusMiles: anchor.radiusMiles,
     );
 
     return _MapsData(
       retailers: allRetailers,
       followedIds: followed.map((r) => r.id).toSet(),
       stores: stores,
-      anchorLat: anchor.$1,
-      anchorLng: anchor.$2,
+      anchorLat: anchor.lat,
+      anchorLng: anchor.lng,
+      anchorLabel: anchor.label,
       zipcode: zipcode,
     );
   }
 
-  /// Zipcode to coordinates.
+  /// Zipcode to a query anchor, its radius and an honest heading label.
   ///
-  /// A small table rather than a geocoding call: the store data currently covers
-  /// the New York metro, so anything else has nothing to show anyway.
-  /// TODO: resolve properly (Zippopotam works keyless and sends CORS) once store
-  /// coverage extends past one metro.
-  static (double, double) _anchorFor(String? zipcode) {
+  /// A small table rather than a geocoding call: the store data currently
+  /// covers a handful of metros (whatever has been imported via
+  /// seed/import_osm_stores.py --zip… so anything else has nothing to show.
+  /// Crucially, unknown ZIPs are labelled as the demo area they're being
+  /// served from — before, a Chicago ZIP got a page titled "Near 60601"
+  /// full of Hoboken stores 700 miles away.
+  static _Anchor _anchorFor(String? zipcode) {
     const known = <String, (double, double)>{
       '07030': (40.7439, -74.0324), // Hoboken NJ
       '10001': (40.7484, -73.9967), // Manhattan
       '11201': (40.6940, -73.9903), // Brooklyn
       '11530': (40.7268, -73.6343), // Garden City NY
+      '60601': (41.8819, -87.6278), // Chicago
     };
-    return known[zipcode] ?? const (40.7439, -74.0324);
+    final hit = known[zipcode];
+    if (hit != null) {
+      return _Anchor(hit.$1, hit.$2, 25, 'Near $zipcode');
+    }
+    return const _Anchor(40.7439, -74.0324, 25, 'Near Hoboken, NJ — demo area');
   }
+
+  @override
+  void onDataRevision() => _refresh();
 
   Future<void> _refresh() async {
     final next = _load();
@@ -140,7 +163,7 @@ class _MapsScreenState extends State<MapsScreen> {
             padding: AppSpacing.pageAll,
             children: [
               SectionHeader(
-                data.zipcode == null ? 'Near you' : 'Near ${data.zipcode}',
+                data.anchorLabel,
                 trailing: Text(
                   '${data.stores.length} stores',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -151,8 +174,9 @@ class _MapsScreenState extends State<MapsScreen> {
               if (grouped.isEmpty)
                 const AppEmptyState(
                   message:
-                      'No stores within 25 miles.\n'
-                      'Run seed/import_osm_stores.py to load your area.',
+                      'No stores within the searched radius.\n'
+                      'Run seed/import_osm_stores.py --zip <your ZIP> to load '
+                      'your area.',
                   icon: Icons.storefront_outlined,
                 )
               else
@@ -302,6 +326,7 @@ class _MapsData {
   final List<Store> stores;
   final double anchorLat;
   final double anchorLng;
+  final String anchorLabel;
   final String? zipcode;
 
   const _MapsData({
@@ -310,6 +335,7 @@ class _MapsData {
     required this.stores,
     required this.anchorLat,
     required this.anchorLng,
+    required this.anchorLabel,
     this.zipcode,
   });
 

@@ -34,6 +34,20 @@ class _MapViewState extends State<MapView> {
   /// canvas rather than throwing. We surface that as a message instead.
   late final String _token = dotenv.maybeGet('MAPBOX_TOKEN') ?? '';
 
+  /// Kept across rebuilds so a data refresh can move the existing pins rather
+  /// than being unable to — `onMapCreated` fires exactly once per platform
+  /// view, and this widget is reused in place when the Maps screen refetches,
+  /// so a refresh that only rebuilt the widget used to leave the canvas
+  /// showing the OLD stores while the list above showed the new ones.
+  MapboxMap? _map;
+  CircleAnnotationManager? _circleManager;
+
+  /// Guards against two overlapping async redraws leaving a half-torn-down
+  /// annotation set; a request arriving mid-flight sets the flag so the
+  /// in-flight one re-runs when it finishes.
+  bool _syncing = false;
+  bool _again = false;
+
   @override
   void initState() {
     super.initState();
@@ -42,8 +56,35 @@ class _MapViewState extends State<MapView> {
     }
   }
 
-  double get _lat => widget.centerLat ?? widget.stores.firstOrNull?.lat ?? 40.7439;
-  double get _lng => widget.centerLng ?? widget.stores.firstOrNull?.lng ?? -74.0324;
+  @override
+  void didUpdateWidget(MapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_map == null) return;
+    if (widget.stores != oldWidget.stores) _syncMarkers();
+    if (widget.centerLat != oldWidget.centerLat ||
+        widget.centerLng != oldWidget.centerLng) {
+      _map!.setCamera(
+        CameraOptions(
+          center: Point(coordinates: Position(_lng, _lat)),
+          zoom: widget.zoom,
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    // The platform view owns the manager; dropping the references is all the
+    // Dart side can (and needs to) do.
+    _map = null;
+    _circleManager = null;
+    super.dispose();
+  }
+
+  double get _lat =>
+      widget.centerLat ?? widget.stores.firstOrNull?.lat ?? 40.7439;
+  double get _lng =>
+      widget.centerLng ?? widget.stores.firstOrNull?.lng ?? -74.0324;
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +98,7 @@ class _MapViewState extends State<MapView> {
         pitch: 0,
       ),
       onMapCreated: (mapboxMap) async {
+        _map = mapboxMap;
         mapboxMap.location.updateSettings(
           LocationComponentSettings(
             // A 2D puck, not the glTF duck model this used to point at.
@@ -67,33 +109,55 @@ class _MapViewState extends State<MapView> {
         );
         // Colours are read before the await, since the callback resumes after an
         // async gap where this State may no longer be mounted.
-        await _addStoreMarkers(mapboxMap, Theme.of(context).colorScheme);
+        await _syncMarkers(Theme.of(context).colorScheme);
       },
     );
   }
 
-  Future<void> _addStoreMarkers(MapboxMap map, ColorScheme scheme) async {
-    final plottable =
-        widget.stores.where((s) => s.lat != null && s.lng != null).toList();
-    if (plottable.isEmpty) return;
-
-    final manager = await map.annotations.createCircleAnnotationManager();
-    await manager.createMulti([
-      for (final store in plottable)
-        CircleAnnotationOptions(
-          geometry: Point(coordinates: Position(store.lng!, store.lat!)),
-          circleRadius: 7,
-          circleColor: scheme.primary.toARGB32(),
-          circleStrokeWidth: 2,
-          circleStrokeColor: scheme.onPrimary.toARGB32(),
-        ),
-    ]);
+  /// Clears and redraws the store circles from the current [widget.stores].
+  Future<void> _syncMarkers([ColorScheme? scheme]) async {
+    final map = _map;
+    if (map == null) return;
+    if (_syncing) {
+      _again = true;
+      return;
+    }
+    _syncing = true;
+    try {
+      final colors = scheme ?? Theme.of(context).colorScheme;
+      final plottable = widget.stores
+          .where((s) => s.lat != null && s.lng != null)
+          .toList();
+      var manager = _circleManager;
+      if (plottable.isEmpty) {
+        await manager?.deleteAll();
+        return;
+      }
+      manager ??= await map.annotations.createCircleAnnotationManager();
+      _circleManager = manager;
+      await manager.deleteAll();
+      await manager.createMulti([
+        for (final store in plottable)
+          CircleAnnotationOptions(
+            geometry: Point(coordinates: Position(store.lng!, store.lat!)),
+            circleRadius: 7,
+            circleColor: colors.primary.toARGB32(),
+            circleStrokeWidth: 2,
+            circleStrokeColor: colors.onPrimary.toARGB32(),
+          ),
+      ]);
+    } finally {
+      _syncing = false;
+      if (_again) {
+        _again = false;
+        _syncMarkers();
+      }
+    }
   }
 }
 
 class _MissingTokenNotice extends StatelessWidget {
   const _MissingTokenNotice();
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -105,15 +169,18 @@ class _MissingTokenNotice extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.map_outlined, size: 32, color: scheme.onSurfaceVariant),
+              Icon(
+                Icons.map_outlined,
+                size: 32,
+                color: scheme.onSurfaceVariant,
+              ),
               const SizedBox(height: 8),
               Text(
                 'Add MAPBOX_TOKEN to .env to load the map',
                 textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
               ),
             ],
           ),

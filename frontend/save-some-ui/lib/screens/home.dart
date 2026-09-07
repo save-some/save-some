@@ -18,6 +18,7 @@ import 'package:save_some_ui/widgets/common/section_header.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
 import 'package:save_some_ui/widgets/common/page_width.dart';
 import 'package:save_some_ui/widgets/nav/app_nav_bar.dart';
+import 'package:save_some_ui/state/data_revision.dart';
 
 /// Home tab content: greeting, interest chips, trending products.
 class HomeContent extends StatefulWidget {
@@ -29,7 +30,7 @@ class HomeContent extends StatefulWidget {
   State<HomeContent> createState() => _HomeContentState();
 }
 
-class _HomeContentState extends State<HomeContent> {
+class _HomeContentState extends State<HomeContent> with RevisionAware {
   late Future<HomeData> _homeData;
 
   @override
@@ -53,6 +54,11 @@ class _HomeContentState extends State<HomeContent> {
     await next;
   }
 
+  /// A bump means some user-scoped data changed behind this tab (an onboarding
+  /// just finished, a retailer was followed) — reload rather than keep serving
+  /// the pre-mutation snapshot.
+  @override
+  void onDataRevision() => _refresh();
   void _openSubmitProduct() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
