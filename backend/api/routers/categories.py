@@ -15,6 +15,7 @@ router = APIRouter (
 
 
  
+@router.get("")          # /v1/categories answers directly; no 307 first
 @router.get("/", response_model = List[Category])
 def list_categories():
     with get_db_handle() as conn:

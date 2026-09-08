@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -76,9 +76,9 @@ class ProductPrice (BaseModel):
 
  
 class ProductSearchRequest(BaseModel):
-    query: str
-    limit: int = 25
-    offset: int = 0
+    query: str = Field(min_length=1, max_length=200)
+    limit: int = Field(25, ge=1, le=200)
+    offset: int = Field(0, ge=0)
  
  
 class ProductSearchResponse(BaseModel):
@@ -86,9 +86,9 @@ class ProductSearchResponse(BaseModel):
  
  
 class RetailerSearchRequest(BaseModel):
-    query: str
-    limit: int = 25
-    offset: int = 0
+    query: str = Field(min_length=1, max_length=200)
+    limit: int = Field(25, ge=1, le=200)
+    offset: int = Field(0, ge=0)
 
 
 # User stuff ...

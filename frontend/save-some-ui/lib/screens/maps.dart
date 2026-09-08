@@ -4,12 +4,26 @@ import 'package:save_some_ui/models/models.dart';
 import 'package:save_some_ui/screens/retailer_detail.dart';
 import 'package:save_some_ui/services/app_services.dart';
 import 'package:save_some_ui/theme/tokens.dart';
+import 'package:save_some_ui/theme/breakpoints.dart';
 import 'package:save_some_ui/widgets/common/app_card.dart';
 import 'package:save_some_ui/widgets/common/avatar_badge.dart';
 import 'package:save_some_ui/widgets/common/retailer_products_sheet.dart';
 import 'package:save_some_ui/widgets/common/section_header.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
+import 'package:save_some_ui/services/api_client.dart' show ApiException;
 import 'package:save_some_ui/widgets/map/map_view.dart';
+import 'package:save_some_ui/state/data_revision.dart';
+
+/// A store-search anchor: coordinates, radius and the heading the Maps page
+/// is allowed to show for results from it.
+class _Anchor {
+  final double lat;
+  final double lng;
+  final double radiusMiles;
+  final String label;
+
+  const _Anchor(this.lat, this.lng, this.radiusMiles, this.label);
+}
 
 /// Which retailers are near you, and what they carry.
 ///
@@ -25,7 +39,7 @@ class MapsScreen extends StatefulWidget {
   State<MapsScreen> createState() => _MapsScreenState();
 }
 
-class _MapsScreenState extends State<MapsScreen> {
+class _MapsScreenState extends State<MapsScreen> with RevisionAware {
   final _services = AppServices.instance;
 
   late Future<_MapsData> _data;
@@ -42,47 +56,57 @@ class _MapsScreenState extends State<MapsScreen> {
     // before the tab could render anything.
     final retailersFuture = _services.retailers.fetchAll();
     final followedFuture = _services.users.fetchRetailers(widget.userId);
-    // The profile's zipcode is the geo anchor. Server-side geocoding would be
-    // better than a lookup table, but the zipcode is what we reliably have.
     final zipcodeFuture = _services.users.fetchZipcode(widget.userId);
 
     final allRetailers = await retailersFuture;
     final followed = await followedFuture;
     final zipcode = await zipcodeFuture;
 
-    // This one genuinely depends on the zipcode, so it stays sequential.
-    final anchor = _anchorFor(zipcode);
+    final anchor = await _anchorFor(zipcode);
     final stores = await _services.retailers.fetchNearbyStores(
-      lat: anchor.$1,
-      lng: anchor.$2,
-      radiusMiles: 25,
+      lat: anchor.lat,
+      lng: anchor.lng,
+      radiusMiles: anchor.radiusMiles,
     );
 
     return _MapsData(
       retailers: allRetailers,
       followedIds: followed.map((r) => r.id).toSet(),
       stores: stores,
-      anchorLat: anchor.$1,
-      anchorLng: anchor.$2,
+      anchorLat: anchor.lat,
+      anchorLng: anchor.lng,
+      anchorLabel: anchor.label,
       zipcode: zipcode,
     );
   }
 
-  /// Zipcode to coordinates.
+  /// The profile's ZIP, resolved by the BACKEND — one lookup feeds the
+  /// camera, the heading and the store search, so they can't disagree.
   ///
-  /// A small table rather than a geocoding call: the store data currently covers
-  /// the New York metro, so anything else has nothing to show anyway.
-  /// TODO: resolve properly (Zippopotam works keyless and sends CORS) once store
-  /// coverage extends past one metro.
-  static (double, double) _anchorFor(String? zipcode) {
-    const known = <String, (double, double)>{
-      '07030': (40.7439, -74.0324), // Hoboken NJ
-      '10001': (40.7484, -73.9967), // Manhattan
-      '11201': (40.6940, -73.9903), // Brooklyn
-      '11530': (40.7268, -73.6343), // Garden City NY
-    };
-    return known[zipcode] ?? const (40.7439, -74.0324);
+  /// An unresolvable ZIP (unknown code, no backend geocache warm yet) falls
+  /// back to the demo anchor, and — crucially — says so: the heading names
+  /// Hoboken, never the user's own ZIP. That lie used to read as "near me is
+  /// in New Jersey".
+  Future<_Anchor> _anchorFor(String? zipcode) async {
+    if (zipcode != null && zipcode.isNotEmpty) {
+      try {
+        final info = await _services.retailers.fetchZip(zipcode);
+        return _Anchor(
+          info.lat,
+          info.lng,
+          25,
+          'Near ${info.label ?? info.zip}',
+        );
+      } on ApiException {
+        // Unknown ZIP: honest demo fallback below, and the empty state points
+        // at --zip so whoever seeds the area can act on it.
+      }
+    }
+    return const _Anchor(40.7439, -74.0324, 25, 'Near Hoboken, NJ — demo area');
   }
+
+  @override
+  void onDataRevision() => _refresh();
 
   Future<void> _refresh() async {
     final next = _load();
@@ -134,13 +158,20 @@ class _MapsScreenState extends State<MapsScreen> {
         final data = snapshot.data!;
         final grouped = data.groupedByRetailer();
 
-        return RefreshIndicator(
+        // The map used to live INSIDE the ListView, so every drag was claimed
+        // by the scroll view's gesture arena and the Mapbox platform view never
+        // received a pan — it looked like a frozen image, not a map. The list
+        // and the map are now siblings (list scrolls in an Expanded slot, the
+        // map keeps a fixed one), on narrow (stacked) and wide (side by side)
+        // alike, so the platform view owns its own gestures everywhere.
+        final wide = WindowSize.of(context).browseColumns > 1;
+        final listPanel = RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
             padding: AppSpacing.pageAll,
             children: [
               SectionHeader(
-                data.zipcode == null ? 'Near you' : 'Near ${data.zipcode}',
+                data.anchorLabel,
                 trailing: Text(
                   '${data.stores.length} stores',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -151,8 +182,9 @@ class _MapsScreenState extends State<MapsScreen> {
               if (grouped.isEmpty)
                 const AppEmptyState(
                   message:
-                      'No stores within 25 miles.\n'
-                      'Run seed/import_osm_stores.py to load your area.',
+                      'No stores within the searched radius.\n'
+                      'Run seed/import_osm_stores.py --zip <your ZIP> to load '
+                      'your area.',
                   icon: Icons.storefront_outlined,
                 )
               else
@@ -161,25 +193,71 @@ class _MapsScreenState extends State<MapsScreen> {
                   followedIds: data.followedIds,
                   onSelect: (group) => _showProducts(group.retailer),
                 ),
-
-              const SizedBox(height: AppSpacing.xl),
-              const SectionHeader('See Stores Nearby'),
-              ClipRRect(
-                borderRadius: AppRadius.mdAll,
-                child: SizedBox(
-                  height: 300,
-                  child: MapView(
-                    centerLat: data.anchorLat,
-                    centerLng: data.anchorLng,
-                    stores: data.stores,
-                  ),
-                ),
-              ),
               const SizedBox(height: AppSpacing.lg),
             ],
           ),
         );
+
+        if (wide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: listPanel),
+              SizedBox(
+                width: 520,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    0,
+                    AppSpacing.gutter,
+                    AppSpacing.gutter,
+                    AppSpacing.gutter,
+                  ),
+                  child: _mapPanel(context, data, 480),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            Expanded(child: listPanel),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.gutter,
+                0,
+                AppSpacing.gutter,
+                AppSpacing.gutter,
+              ),
+              child: _mapPanel(context, data, 320),
+            ),
+          ],
+        );
       },
+    );
+  }
+
+  /// The interactive map card. `height` is fixed and OUTSIDE any scroller so
+  /// pan/zoom gestures reach the platform view instead of the list.
+  Widget _mapPanel(BuildContext context, _MapsData data, double height) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader('See Stores Nearby'),
+        ClipRRect(
+          borderRadius: AppRadius.mdAll,
+          child: SizedBox(
+            height: height,
+            child: MapView(
+              centerLat: data.anchorLat,
+              centerLng: data.anchorLng,
+              stores: data.stores,
+              retailerNames: {for (final r in data.retailers) r.id: r.name},
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -302,6 +380,7 @@ class _MapsData {
   final List<Store> stores;
   final double anchorLat;
   final double anchorLng;
+  final String anchorLabel;
   final String? zipcode;
 
   const _MapsData({
@@ -310,6 +389,7 @@ class _MapsData {
     required this.stores,
     required this.anchorLat,
     required this.anchorLng,
+    required this.anchorLabel,
     this.zipcode,
   });
 

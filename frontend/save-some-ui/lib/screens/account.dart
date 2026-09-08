@@ -5,6 +5,7 @@ import 'package:save_some_ui/models/models.dart';
 import 'package:save_some_ui/screens/submit_product.dart';
 import 'package:save_some_ui/services/app_services.dart';
 import 'package:save_some_ui/state/session.dart';
+import 'package:save_some_ui/state/data_revision.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/common/settings_tile.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
@@ -18,7 +19,7 @@ class AccountScreen extends StatefulWidget {
   State<AccountScreen> createState() => _AccountScreenState();
 }
 
-class _AccountScreenState extends State<AccountScreen> {
+class _AccountScreenState extends State<AccountScreen> with RevisionAware {
   late Future<User?> _profile;
 
   // Local-only for now: neither toggle has anything behind it yet, so they're
@@ -39,6 +40,9 @@ class _AccountScreenState extends State<AccountScreen> {
     });
     await next;
   }
+
+  @override
+  void onDataRevision() => _refresh();
 
   Future<void> _signOut() async {
     final isDevUser = AppSession.instance.isDevUser;

@@ -11,13 +11,15 @@ import 'package:save_some_ui/screens/submit_product.dart';
 import 'package:save_some_ui/services/app_services.dart';
 import 'package:save_some_ui/services/home_service.dart';
 import 'package:save_some_ui/theme/tokens.dart';
-import 'package:save_some_ui/widgets/cards/product.dart';
+import 'package:save_some_ui/widgets/common/app_card.dart';
+import 'package:save_some_ui/widgets/cards/product_grid.dart';
 import 'package:save_some_ui/widgets/common/chip_group.dart';
 import 'package:save_some_ui/widgets/common/primary_button.dart';
 import 'package:save_some_ui/widgets/common/section_header.dart';
 import 'package:save_some_ui/widgets/common/state_views.dart';
 import 'package:save_some_ui/widgets/common/page_width.dart';
 import 'package:save_some_ui/widgets/nav/app_nav_bar.dart';
+import 'package:save_some_ui/state/data_revision.dart';
 
 /// Home tab content: greeting, interest chips, trending products.
 class HomeContent extends StatefulWidget {
@@ -29,9 +31,9 @@ class HomeContent extends StatefulWidget {
   State<HomeContent> createState() => _HomeContentState();
 }
 
-class _HomeContentState extends State<HomeContent> {
+class _HomeContentState extends State<HomeContent> with RevisionAware {
   late Future<HomeData> _homeData;
-
+  bool _showAllTrending = false;
   @override
   void initState() {
     super.initState();
@@ -53,6 +55,11 @@ class _HomeContentState extends State<HomeContent> {
     await next;
   }
 
+  /// A bump means some user-scoped data changed behind this tab (an onboarding
+  /// just finished, a retailer was followed) — reload rather than keep serving
+  /// the pre-mutation snapshot.
+  @override
+  void onDataRevision() => _refresh();
   void _openSubmitProduct() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -92,45 +99,72 @@ class _HomeContentState extends State<HomeContent> {
 
         return RefreshIndicator(
           onRefresh: _refresh,
-          child: ListView(
-            padding: AppSpacing.pageAll,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Welcome back,\n${profile.displayName}',
-                      style: theme.textTheme.displaySmall,
+          child: PageWidth(
+            wide: true,
+            child: ListView(
+              padding: AppSpacing.pageAll,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Welcome back,\n${profile.displayName}',
+                        style: theme.textTheme.displaySmall,
+                      ),
                     ),
+                    IconButton(
+                      onPressed: _openSubmitProduct,
+                      icon: const Icon(Icons.add_circle_outline),
+                      tooltip: 'Submit a product',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                const SectionHeader('Your Interests', muted: true),
+                if (data.interests.isEmpty)
+                  const AppEmptyState(message: 'No interests set yet')
+                else
+                  ChipRow(labels: [for (final c in data.interests) c.name]),
+                const SizedBox(height: AppSpacing.xl),
+                const SectionHeader('Trending this week'),
+                if (data.trending.isEmpty)
+                  const AppEmptyState(
+                    message: 'No price drops to show yet',
+                    icon: Icons.trending_down,
+                  )
+                else ...[
+                  // Home is a springboard, not the whole feed: five drops and
+                  // an explicit way to the rest.
+                  ProductGrid(
+                    products: _showAllTrending
+                        ? data.trending
+                        : data.trending.take(5).toList(),
+                    onTap: _openProduct,
                   ),
-                  IconButton(
-                    onPressed: _openSubmitProduct,
-                    icon: const Icon(Icons.add_circle_outline),
-                    tooltip: 'Submit a product',
-                  ),
+                  if (data.trending.length > 5)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => setState(
+                          () => _showAllTrending = !_showAllTrending,
+                        ),
+                        icon: Icon(
+                          _showAllTrending
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          size: 18,
+                        ),
+                        label: Text(
+                          _showAllTrending
+                              ? 'Show less'
+                              : 'See all ${data.trending.length} price drops',
+                        ),
+                      ),
+                    ),
                 ],
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              const SectionHeader('Your Interests', muted: true),
-              if (data.interests.isEmpty)
-                const AppEmptyState(message: 'No interests set yet')
-              else
-                ChipRow(labels: [for (final c in data.interests) c.name]),
-              const SizedBox(height: AppSpacing.xl),
-              const SectionHeader('Trending this week'),
-              if (data.trending.isEmpty)
-                const AppEmptyState(
-                  message: 'No price drops to show yet',
-                  icon: Icons.trending_down,
-                )
-              else
-                for (final product in data.trending)
-                  ProductCard(
-                    product: product,
-                    onTap: () => _openProduct(product),
-                  ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -158,45 +192,65 @@ class _NeedsOnboardingState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // A card, not text stranded on the canvas: on a wide window this is the
+    // app's front door, and it should look furnished.
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.waving_hand_outlined,
-              size: 40,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Let\'s get you set up', style: theme.textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Tell us your ZIP code and which stores you shop at, and we\'ll '
-              'start tracking prices near you.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            PrimaryButton(
-              label: 'Get started',
-              icon: Icons.arrow_forward,
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => OnboardingScreen(
-                    userId: userId,
-                    onComplete: () {
-                      Navigator.of(context).pop();
-                      onComplete();
-                    },
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: AppCard(
+            raised: true,
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.waving_hand_outlined,
+                    size: 28,
+                    color: theme.colorScheme.primary,
                   ),
                 ),
-              ),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  'Let\'s get you set up',
+                  style: theme.textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Tell us your ZIP code and which stores you shop at, and we\'ll '
+                  'start tracking prices near you.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                PrimaryButton(
+                  label: 'Get started',
+                  icon: Icons.arrow_forward,
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => OnboardingScreen(
+                        userId: userId,
+                        onComplete: () {
+                          Navigator.of(context).pop();
+                          onComplete();
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -224,9 +278,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // AppNavigation picks a side rail or a bottom bar from the window size, and
-    // PageWidth keeps the column readable instead of letting cards span a 1440px
-    // browser window.
+    // AppNavigation picks a side rail or a bottom bar from the window size.
+    // Width caps live inside each tab now: browse screens want the wide grid
+    // measure, reading screens the narrow column — one global cap forced both
+    // into the same strip.
     //
     // IndexedStack, not `pages.elementAt(index)`: that rebuilt each tab from
     // scratch on every switch, so scroll position and in-flight requests were
@@ -234,17 +289,18 @@ class _HomeScreenState extends State<HomeScreen> {
     return AppNavigation(
       selectedIndex: _selectedIndex,
       onDestinationSelected: _onDestinationSelected,
-      body: PageWidth(
-        child: IndexedStack(
-          index: _selectedIndex,
-          children: [
-            ProductScreen(userId: widget.userId),
-            MapsScreen(userId: widget.userId),
-            HomeContent(userId: widget.userId),
-            HistoryScreen(userId: widget.userId),
-            AccountScreen(userId: widget.userId),
-          ],
-        ),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          ProductScreen(userId: widget.userId),
+          // Browse surfaces take the wide grid measure; reading surfaces
+          // keep the narrow column. Caps applied here rather than inside the
+          // screens so the ListView/RefreshIndicator tree isn't re-nested.
+          PageWidth(wide: true, child: MapsScreen(userId: widget.userId)),
+          HomeContent(userId: widget.userId),
+          PageWidth(child: HistoryScreen(userId: widget.userId)),
+          PageWidth(child: AccountScreen(userId: widget.userId)),
+        ],
       ),
     );
   }

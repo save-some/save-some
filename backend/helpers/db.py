@@ -553,8 +553,8 @@ def upsert_watchlist_item (conn, user_id: str, product_id: str,
         INSERT INTO user_products (user_id, product_id, target_price, notes)
         VALUES (%s, %s, %s, %s)
         ON CONFLICT (user_id, product_id) DO UPDATE
-            SET target_price = EXCLUDED.target_price,
-                notes = EXCLUDED.notes
+            SET target_price = COALESCE(EXCLUDED.target_price, user_products.target_price),
+                notes = COALESCE(EXCLUDED.notes, user_products.notes)
         RETURNING *
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
