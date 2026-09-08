@@ -45,6 +45,8 @@ Rules every adapter must follow:
 5. Name the file `<chain>_<transport>.py` (e.g. `bjs_scrape.py`), so
    flipping a chain from rapidapi to scraper is a cron-line change.
 
-Nothing is checked in here yet by design: the first adapters arrive with
-Phase 2 (RapidAPI ports of seed.py's parsing) and Phase 3 (scraper
-recipes), each with fixtures under `backend/tests/fixtures/`.
+`walmart_rapidapi.py` is the reference implementation of everything above:
+pure parsing into contract objects, budget-guarded transport, and offline
+fixture tests under `backend/tests/`. Further chains follow its shape —
+RapidAPI ports from Phase 0's catalog, and scraper recipes from Phase 3,
+each arriving with the same `SOURCE` object and the same test discipline.

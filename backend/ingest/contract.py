@@ -21,6 +21,17 @@ class NormalizedProduct:
     description: str | None = None
     image_url: str | None = None
 
+    def __post_init__(self) -> None:
+        # Cheap, loud, at the boundary: a transport that invents empty
+        # names or non-http image links fails HERE, next to its own code,
+        # instead of surfacing as a mystery row (or a DB error) inside the
+        # writer three layers away.
+        if not (self.name or "").strip():
+            raise ValueError("NormalizedProduct.name must be non-empty")
+        _require_url("NormalizedProduct.image_url", self.image_url)
+        if self.upc is not None:
+            self.upc = self.upc.strip() or None
+
 
 @dataclass
 class NormalizedOffer:
@@ -34,6 +45,30 @@ class NormalizedOffer:
     source: str | None = None   # which transport produced this row
     image_url: str | None = None
     original_price: float | None = None
+
+    def __post_init__(self) -> None:
+        if not (self.retailer or "").strip():
+            raise ValueError("NormalizedOffer.retailer must be non-empty")
+        if not (self.external_id or "").strip():
+            raise ValueError("NormalizedOffer.external_id must be non-empty")
+        # A price observation of zero or less is exactly the silent
+        # corruption the old seeder produced when parsing failed to 0.0 —
+        # an offer without a real price is skipped by adapters, never
+        # emitted.
+        if not (self.price > 0):
+            raise ValueError(
+                f"NormalizedOffer.price must be > 0 (got {self.price!r})")
+        if self.original_price is not None and not (self.original_price > 0):
+            raise ValueError(
+                "NormalizedOffer.original_price must be > 0 when present")
+        _require_url("NormalizedOffer.product_url", self.product_url)
+        _require_url("NormalizedOffer.image_url", self.image_url)
+
+
+def _require_url(field: str, value: str | None) -> None:
+    if value is not None and not value.startswith(("http://", "https://")):
+        raise ValueError(f"{field} must be an absolute http(s) URL "
+                         f"(got {value!r})")
 
 
 @dataclass(frozen=True)
