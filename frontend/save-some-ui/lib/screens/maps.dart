@@ -158,7 +158,14 @@ class _MapsScreenState extends State<MapsScreen> with RevisionAware {
         final data = snapshot.data!;
         final grouped = data.groupedByRetailer();
 
-        return RefreshIndicator(
+        // The map used to live INSIDE the ListView, so every drag was claimed
+        // by the scroll view's gesture arena and the Mapbox platform view never
+        // received a pan — it looked like a frozen image, not a map. The list
+        // and the map are now siblings (list scrolls in an Expanded slot, the
+        // map keeps a fixed one), on narrow (stacked) and wide (side by side)
+        // alike, so the platform view owns its own gestures everywhere.
+        final wide = WindowSize.of(context).browseColumns > 1;
+        final listPanel = RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
             padding: AppSpacing.pageAll,
@@ -186,27 +193,71 @@ class _MapsScreenState extends State<MapsScreen> with RevisionAware {
                   followedIds: data.followedIds,
                   onSelect: (group) => _showProducts(group.retailer),
                 ),
-
-              const SizedBox(height: AppSpacing.xl),
-              const SectionHeader('See Stores Nearby'),
-              ClipRRect(
-                borderRadius: AppRadius.mdAll,
-                child: SizedBox(
-                  // A 300px map on a 1900px window looks like a stamp; on a
-                  // phone the strip height is the design.
-                  height: WindowSize.of(context).browseColumns > 1 ? 440 : 300,
-                  child: MapView(
-                    centerLat: data.anchorLat,
-                    centerLng: data.anchorLng,
-                    stores: data.stores,
-                  ),
-                ),
-              ),
               const SizedBox(height: AppSpacing.lg),
             ],
           ),
         );
+
+        if (wide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: listPanel),
+              SizedBox(
+                width: 520,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    0,
+                    AppSpacing.gutter,
+                    AppSpacing.gutter,
+                    AppSpacing.gutter,
+                  ),
+                  child: _mapPanel(context, data, 480),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            Expanded(child: listPanel),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.gutter,
+                0,
+                AppSpacing.gutter,
+                AppSpacing.gutter,
+              ),
+              child: _mapPanel(context, data, 320),
+            ),
+          ],
+        );
       },
+    );
+  }
+
+  /// The interactive map card. `height` is fixed and OUTSIDE any scroller so
+  /// pan/zoom gestures reach the platform view instead of the list.
+  Widget _mapPanel(BuildContext context, _MapsData data, double height) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader('See Stores Nearby'),
+        ClipRRect(
+          borderRadius: AppRadius.mdAll,
+          child: SizedBox(
+            height: height,
+            child: MapView(
+              centerLat: data.anchorLat,
+              centerLng: data.anchorLng,
+              stores: data.stores,
+              retailerNames: {for (final r in data.retailers) r.id: r.name},
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
