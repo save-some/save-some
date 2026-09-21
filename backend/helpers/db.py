@@ -191,10 +191,27 @@ def retrieve_products_for_retailers (conn, retailer_ids: Optional[list] = None,
 def search_products_for_retailer (conn, retailer_id: str, search_query: str,
                                   limit: int = 25, offset: int = 0) -> list:
     """
-    Search a specific retailer's products by name. Used to back the
-    "search within a retailer" flow on the Products page.
+    Relevance-ranked full-text search over a retailer's products (name,
+    brand, description). websearch_to_tsquery stems and phrases, ts_rank
+    orders by TF-IDF-style relevance. Substring ILIKE is only the
+    zero-hit fallback: partial words and stopword-only queries never
+    match the tsvector, so they still behave the way they used to.
+    Used to back the "search within a retailer" flow on the Products page.
     """
-    query = f"""
+    fts = f"""
+        SELECT p.*, rp.id AS retailer_product_id, rp.external_id,
+               rp.product_url, rp.image_url AS retailer_image_url,
+               r.name AS retailer_name, {_LATEST_PRICE_COLUMNS}
+        FROM retailer_products rp
+        JOIN products p ON p.id = rp.product_id
+        JOIN retailers r ON r.id = rp.retailer_id
+        {_LATEST_PRICE_FOR_RP}
+        WHERE rp.retailer_id = %s
+          AND p.search_vector @@ websearch_to_tsquery('english', %s)
+        ORDER BY ts_rank(p.search_vector, websearch_to_tsquery('english', %s)) DESC, p.name
+        LIMIT %s OFFSET %s
+    """
+    ilike = f"""
         SELECT p.*, rp.id AS retailer_product_id, rp.external_id,
                rp.product_url, rp.image_url AS retailer_image_url,
                r.name AS retailer_name, {_LATEST_PRICE_COLUMNS}
@@ -207,17 +224,32 @@ def search_products_for_retailer (conn, retailer_id: str, search_query: str,
         LIMIT %s OFFSET %s
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(query, (retailer_id, f"%{search_query}%", limit, offset))
+        cur.execute(fts, (retailer_id, search_query, search_query, limit, offset))
         rows = cur.fetchall()
+        if not rows:
+            cur.execute(ilike, (retailer_id, f"%{search_query}%", limit, offset))
+            rows = cur.fetchall()
     return rows
  
  
 def query_products (conn, search_query: str, limit: int = 25, offset: int = 0) -> list:
     """
-    Search canonical products by name, across all retailers.
+    Relevance-ranked full-text search over canonical products'
+    name/brand/description, across all retailers. websearch_to_tsquery +
+    ts_rank do the ranking (TF-IDF-ish, stemming via the english
+    dictionary); substring ILIKE runs only when the ranked query returns
+    nothing, so partial words and stopword-only queries keep working.
     Backs POST /v1/products/search.
     """
-    query = f"""
+    fts = f"""
+        SELECT p.*, {_CHEAPEST_PRICE_COLUMNS}
+        FROM products p
+        {_CHEAPEST_PRICE_FOR_PRODUCT}
+        WHERE p.search_vector @@ websearch_to_tsquery('english', %s)
+        ORDER BY ts_rank(p.search_vector, websearch_to_tsquery('english', %s)) DESC, p.name
+        LIMIT %s OFFSET %s
+    """
+    ilike = f"""
         SELECT p.*, {_CHEAPEST_PRICE_COLUMNS}
         FROM products p
         {_CHEAPEST_PRICE_FOR_PRODUCT}
@@ -226,8 +258,11 @@ def query_products (conn, search_query: str, limit: int = 25, offset: int = 0) -
         LIMIT %s OFFSET %s
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(query, (f"%{search_query}%", limit, offset))
+        cur.execute(fts, (search_query, search_query, limit, offset))
         rows = cur.fetchall()
+        if not rows:
+            cur.execute(ilike, (f"%{search_query}%", limit, offset))
+            rows = cur.fetchall()
     return rows
  
  

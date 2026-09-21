@@ -54,3 +54,22 @@ CREATE INDEX IF NOT EXISTS idx_search_history_searched_at ON search_history(sear
 -- and grouped by retailer_product_id — the existing indexes on
 -- (retailer_product_id) and (scraped_at) already cover this, no new index
 -- needed there.
+
+-- Mini search engine: TF-IDF-ish full text instead of ILIKE substring soup.
+-- to_tsvector ranks by term frequency in the row, ts_rank discounts terms
+-- common across the table (inverse document frequency), the english
+-- dictionary stems ("cameras" finds "Camera"). GENERATED ALWAYS keeps every
+-- write path honest without code changes: seed, ingest/writer.py and manual
+-- inserts all enumerate their columns, so a generated column is invisible
+-- to them. Name is the strongest signal, then brand, then description
+-- (description is populated for only a handful of rows today).
+ALTER TABLE products
+  ADD COLUMN IF NOT EXISTS search_vector tsvector
+    GENERATED ALWAYS AS (
+      setweight(to_tsvector('english', coalesce(name, '')), 'A') ||
+      setweight(to_tsvector('english', coalesce(brand, '')), 'B') ||
+      setweight(to_tsvector('english', coalesce(description, '')), 'D')
+    ) STORED;
+
+CREATE INDEX IF NOT EXISTS products_search_vector_gin
+  ON products USING GIN (search_vector);
