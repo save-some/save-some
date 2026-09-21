@@ -75,6 +75,10 @@ flutter:
       # the logo is geometry, brand-coloured monograms otherwise; drop official
       # artwork in here to replace them. See widgets/common/retailer_logo.dart.
       - assets/logos/
+      # Pre-rendered circular badge PNGs (Chrome-rasterised from the SVGs at
+      # build-asset time), used as the map's pin icons — Mapbox needs image
+      # bytes, not vectors. Regenerate with the repo's rasterise script.
+      - assets/logos/png/
 
   fonts:
     # Used for the SAVE SOME wordmark and display headings. The design's

@@ -41,8 +41,25 @@ enum WindowSize {
   /// comfortable reading measure, a little wider on big screens so the extra
   /// space isn't purely wasted.
   double get contentMaxWidth => switch (this) {
-        WindowSize.compact => double.infinity,
-        WindowSize.medium => 640,
-        WindowSize.expanded => 760,
-      };
+    WindowSize.compact => double.infinity,
+    WindowSize.medium => 640,
+    WindowSize.expanded => 760,
+  };
+
+  /// Measure for grid-backed browsing screens (Products, Home), which want the
+  /// window filled with columns rather than one narrow column centred in it —
+  /// that centred-strip look is what made the web build read as unfinished.
+  double get browseMaxWidth => switch (this) {
+    WindowSize.compact => double.infinity,
+    WindowSize.medium => 900,
+    WindowSize.expanded => 1240,
+  };
+
+  /// How many product-card columns a browse screen runs. Cards stay a fixed
+  /// readable shape; the window gains columns instead of stretched cards.
+  int get browseColumns => switch (this) {
+    WindowSize.compact => 1,
+    WindowSize.medium => 2,
+    WindowSize.expanded => 3,
+  };
 }

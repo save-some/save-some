@@ -31,9 +31,14 @@ class RetailerLogo extends StatelessWidget {
   });
 
   /// Whether a bundled mark exists, so callers can decide layout up front.
-  static bool hasLogo(String retailerName) => _assetForName(retailerName) != null;
+  static bool hasLogo(String retailerName) =>
+      _assetForName(retailerName) != null;
 
-  static String? _assetForName(String retailerName) {
+  /// The bundled logo slug for a retailer name ("BJ's Wholesale Club" ->
+  /// "bjs"), or null when there is no mark for it. Shared by the SVG widget
+  /// and the map's PNG pin assets so the two can never point at different
+  /// files for the same chain.
+  static String? slugFor(String retailerName) {
     // Normalise so "BJ's", "BJs" and "bj's wholesale club" all land together.
     final key = retailerName
         .toLowerCase()
@@ -57,8 +62,17 @@ class RetailerLogo extends StatelessWidget {
       'costco': 'costco',
       'costco wholesale': 'costco',
     };
+    return table[key];
+  }
 
-    final slug = table[key];
+  /// The pre-rendered circular badge PNG for a chain, used as a map pin.
+  static String? pngAssetFor(String retailerName) {
+    final slug = slugFor(retailerName);
+    return slug == null ? null : 'assets/logos/png/$slug.png';
+  }
+
+  static String? _assetForName(String retailerName) {
+    final slug = slugFor(retailerName);
     return slug == null ? null : 'assets/logos/$slug.svg';
   }
 

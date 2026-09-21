@@ -6,7 +6,7 @@ import 'package:save_some_ui/services/app_services.dart';
 import 'package:save_some_ui/state/recently_viewed.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/util/format.dart';
-import 'package:save_some_ui/widgets/charts/price_sparkline.dart';
+import 'package:save_some_ui/widgets/charts/price_history_chart.dart';
 import 'package:save_some_ui/widgets/common/app_card.dart';
 import 'package:save_some_ui/widgets/common/offer_list.dart';
 import 'package:save_some_ui/widgets/common/product_thumb.dart';
@@ -51,8 +51,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   void _load() {
     _priceHistory = _services.products.fetchPriceHistory(widget.product.id);
-    _offers = _services.products.fetchOffers(widget.product.id);
+    _offers = _services.products.fetchOffers(widget.product.id).then((o) {
+      _offersCache = o;
+      return o;
+    });
   }
+
+  /// Latest offers result, so the price chart can label its lines without
+  /// awaiting the offers future inside the price FutureBuilder (they load in
+  /// parallel). Empty until the first fetch lands; the chart then has one
+  /// unnamed line, which beats serialising the two requests.
+  List<ProductOffer> _offersCache = const [];
 
   Future<void> _refresh() async {
     setState(_load);
@@ -165,7 +174,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         );
                       }
                       if (!snapshot.hasData) return const AppLoading();
-                      return _PriceHistoryBlock(prices: snapshot.data!);
+                      // Offers are already loaded alongside (the comparison
+                      // below); reused here only to name each retailer's line.
+                      return _PriceHistoryBlock(
+                        prices: snapshot.data!,
+                        offers: _offersCache,
+                      );
                     },
                   ),
                 ),
@@ -258,8 +272,9 @@ class _PriceHeadline extends StatelessWidget {
 /// about whether now is a good time to buy.
 class _PriceHistoryBlock extends StatelessWidget {
   final List<ProductPrice> prices;
+  final List<ProductOffer> offers;
 
-  const _PriceHistoryBlock({required this.prices});
+  const _PriceHistoryBlock({required this.prices, required this.offers});
 
   @override
   Widget build(BuildContext context) {
@@ -273,14 +288,56 @@ class _PriceHistoryBlock extends StatelessWidget {
       );
     }
 
+    // Group by retailer: two chains that both carry this product have their
+    // own line. The service already hands history oldest-first, so groups
+    // stay chronological by construction. Retailers with no offer row (a
+    // price whose offer was removed) still get a line, just unnamed.
+    final byRetailer = <String, List<ProductPrice>>{};
+    for (final p in prices) {
+      byRetailer.putIfAbsent(p.retailerId ?? '?', () => []).add(p);
+    }
+    final nameFor = {for (final o in offers) o.retailerId: o.retailerName};
+    final palette = PriceHistoryChart.paletteFor(scheme);
+    final series = <PriceSeries>[];
+    var i = 0;
+    // Cheapest-current-first so the line you'd act on is the first colour.
+    final entries = byRetailer.entries.toList()
+      ..sort((a, b) => a.value.last.price.compareTo(b.value.last.price));
+    for (final e in entries) {
+      series.add(
+        PriceSeries(
+          label: nameFor[e.key] ?? 'Other',
+          color: palette[i % palette.length],
+          points: e.value,
+        ),
+      );
+      i++;
+    }
+
     final values = prices.map((p) => p.price).toList()..sort();
     final low = values.first;
     final high = values.last;
-    final current = prices.last.price;
+    // "now" is the newest observation overall, not one retailer's.
+    final newest = prices.reduce(
+      (a, b) => a.scrapedAt.isAfter(b.scrapedAt) ? a : b,
+    );
+    final current = newest.price;
 
     return Column(
       children: [
-        PriceSparkline(prices: prices),
+        if (series.length > 1) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Across ${series.length} retailers',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        PriceHistoryChart(series: series),
         const SizedBox(height: AppSpacing.md),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,

@@ -15,12 +15,17 @@ class MapView extends StatelessWidget {
   final double zoom;
   final List<Store> stores;
 
+  /// Accepted for parity with map_view_native.dart (where it picks each pin's
+  /// logo); the placeholder has no pins, so it's unused here.
+  final Map<String, String> retailerNames;
+
   const MapView({
     super.key,
     this.centerLat,
     this.centerLng,
     this.zoom = 10,
     this.stores = const [],
+    this.retailerNames = const {},
   });
 
   @override

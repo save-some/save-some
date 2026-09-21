@@ -50,6 +50,7 @@ services:
       - ./backend/schema/local_dev.sql:/docker-entrypoint-initdb.d/10-local-dev.sql:ro
       - ./backend/schema/schema.sql:/docker-entrypoint-initdb.d/20-schema.sql:ro
       - ./backend/schema/api_additions.sql:/docker-entrypoint-initdb.d/30-api-additions.sql:ro
+      - ./backend/schema/zipcodes.sql:/docker-entrypoint-initdb.d/35-zipcodes.sql:ro
       - ./backend/seed/local_seed.sql:/docker-entrypoint-initdb.d/40-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U save_some -d save_some"]

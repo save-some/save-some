@@ -36,18 +36,26 @@ class PrimaryButton extends StatelessWidget {
         ? const SizedBox(
             height: 18,
             width: 18,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
           )
         : (icon == null ? null : Icon(icon, size: 18));
 
-    // Page-level CTA, so it claims the full gutter width. The theme only sets a
-    // minimum height, which keeps other themed buttons usable inside a Row.
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: busy ? null : onPressed,
-        icon: child,
-        label: Text(label),
+    // Page-level CTA: full gutter width, but capped so a 1440px browser
+    // window gets a 480px pill, not a black bar across the whole screen.
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: busy ? null : onPressed,
+            icon: child,
+            label: Text(label),
+          ),
+        ),
       ),
     );
   }
@@ -110,7 +118,10 @@ class AccentButton extends StatelessWidget {
           ? const SizedBox(
               height: 16,
               width: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
             )
           : Text(label),
     );

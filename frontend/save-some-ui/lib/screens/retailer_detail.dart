@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:save_some_ui/models/models.dart';
 import 'package:save_some_ui/screens/product_detail.dart';
 import 'package:save_some_ui/services/app_services.dart';
+import 'package:save_some_ui/state/data_revision.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/widgets/cards/product.dart';
 import 'package:save_some_ui/widgets/cards/store.dart';
@@ -89,6 +90,9 @@ class _RetailerDetailScreenState extends State<RetailerDetailScreen> {
       } else {
         await _services.users.followRetailer(widget.userId, widget.retailerId);
       }
+      // Maps renders the followed set as its chip scoping; it only learns to
+      // care when the set actually changed server-side, i.e. here.
+      DataRevision.instance.bump();
     } catch (error) {
       if (!mounted) return;
       setState(() => _following = wasFollowing);

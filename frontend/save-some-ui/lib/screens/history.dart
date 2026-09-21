@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:save_some_ui/models/models.dart';
 import 'package:save_some_ui/screens/product_detail.dart';
 import 'package:save_some_ui/services/app_services.dart';
+import 'package:save_some_ui/state/data_revision.dart';
 import 'package:save_some_ui/state/recently_viewed.dart';
 import 'package:save_some_ui/theme/tokens.dart';
 import 'package:save_some_ui/util/format.dart';
@@ -29,7 +30,7 @@ class HistoryScreen extends StatefulWidget {
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
+class _HistoryScreenState extends State<HistoryScreen> with RevisionAware {
   final _services = AppServices.instance;
 
   late Future<List<SearchHistoryEntry>> _searches;
@@ -47,6 +48,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
     await Future.wait([searches, _services.watchlist.load(widget.userId)]);
   }
+
+  @override
+  void onDataRevision() => _refresh();
 
   void _openSearch({String? initialQuery}) {
     showSearch(

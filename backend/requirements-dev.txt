@@ -1,0 +1,4 @@
+# Dev/test-only additions on top of requirements.txt.
+# httpx is already a transitive dependency (TestClient needs it); only pytest
+# itself has to be added.
+pytest==9.0.1

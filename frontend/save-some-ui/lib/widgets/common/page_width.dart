@@ -13,11 +13,22 @@ class PageWidth extends StatelessWidget {
   /// Override for screens that want a different measure — a wide chart, say.
   final double? maxWidth;
 
-  const PageWidth({super.key, required this.child, this.maxWidth});
+  /// The wider measure for browse screens — grid-backed lists want the window
+  /// filled with columns, not one narrow strip centred in it.
+  final bool wide;
+
+  const PageWidth({
+    super.key,
+    required this.child,
+    this.maxWidth,
+    this.wide = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final limit = maxWidth ?? WindowSize.of(context).contentMaxWidth;
+    final window = WindowSize.of(context);
+    final limit =
+        maxWidth ?? (wide ? window.browseMaxWidth : window.contentMaxWidth);
     if (limit == double.infinity) return child;
 
     return Align(

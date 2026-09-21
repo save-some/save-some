@@ -1,9 +1,16 @@
 from contextlib import contextmanager
-from psycopg2.extras import RealDictCursor
-from dotenv import load_dotenv
+import os
+import threading
 
 import psycopg2
-import os
+from dotenv import load_dotenv
+from psycopg2 import pool as pgpool
+from psycopg2.extras import register_uuid
+
+# psycopg2 doesn't know uuid.UUID unless the adapter is registered; a UUID
+# object passed to cur.execute otherwise dies mid-query with the cryptic
+# "can't adapt type 'UUID'".
+register_uuid()
 
 load_dotenv()
 
@@ -31,10 +38,45 @@ DB_URI = DATABASE_URL or (
     f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_PROJECT_ID}:{DB_PORT}/{DB_NAME}"
 )
 
+
+# The database is a remote host; opening a fresh TCP+TLS+auth handshake per
+# request measured 0.45-1.05s on top of every endpoint. One pool per process,
+# sized for the app's cold start (five tabs firing ~11 parallel requests).
+_pool: pgpool.ThreadedConnectionPool | None = None
+_pool_lock = threading.Lock()
+
+
+def _get_pool() -> pgpool.ThreadedConnectionPool:
+    global _pool
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                _pool = pgpool.ThreadedConnectionPool(
+                    1, 16, DB_URI, connect_timeout=5)
+    return _pool
+
+
 @contextmanager
 def get_db_handle():
-    conn = psycopg2.connect(DB_URI)
+    pool = _get_pool()
+    conn = pool.getconn()
     try:
+        try:
+            # Hand out a clean connection whatever the last borrower left
+            # behind: an aborted transaction from a failed write, or an open
+            # read snapshot from a previous SELECT that would freeze this
+            # one's view of the data.
+            conn.rollback()
+        except psycopg2.Error:
+            # The server closed an idle connection since it was returned.
+            pool.putconn(conn, close=True)
+            conn = pool.getconn()
         yield conn
+    except Exception:
+        try:
+            conn.rollback()
+        except psycopg2.Error:
+            pass
+        raise
     finally:
-        conn.close()
+        pool.putconn(conn)

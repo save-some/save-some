@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -19,17 +20,33 @@ class ApiClient {
   final http.Client _http;
 
   ApiClient({required this.baseUrl, http.Client? client})
-      : _http = client ?? http.Client();
+    : _http = client ?? http.Client();
+
+  /// Cap for every request. package:http has no default timeout: a backend
+  /// that is alive but wedged (half-open TCP, stalled worker) would otherwise
+  /// leave every FutureBuilder on screen in ConnectionState.waiting forever —
+  /// a frozen spinner with no retry path. Ten seconds is slower than any
+  /// healthy call on this app's worst network path (the remote database costs
+  /// ~1s) and fast enough that users see the error state, not a hang.
+  static const Duration _timeout = Duration(seconds: 10);
+
+  Future<http.Response> _send(Future<http.Response> Function() request) async {
+    try {
+      return await request().timeout(_timeout);
+    } on TimeoutException {
+      throw ApiException('Request timed out after ${_timeout.inSeconds}s');
+    }
+  }
 
   Uri _uri(String path, [Map<String, dynamic>? query]) {
     final normalized = path.startsWith('/') ? path : '/$path';
-    return Uri.parse('$baseUrl$normalized').replace(
-      queryParameters: query?.map((k, v) => MapEntry(k, '$v')),
-    );
+    return Uri.parse(
+      '$baseUrl$normalized',
+    ).replace(queryParameters: query?.map((k, v) => MapEntry(k, '$v')));
   }
 
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
-    final response = await _http.get(_uri(path, query));
+    final response = await _send(() => _http.get(_uri(path, query)));
     return _decode(response);
   }
 
@@ -37,21 +54,25 @@ class ApiClient {
   /// string. Needed when a query key repeats (e.g. `?retailer_ids=a&retailer_ids=b`),
   /// which the `Map<String, dynamic>` shape of [get]'s `query` param can't express.
   Future<dynamic> getRaw(String pathWithQuery) async {
-    final response = await _http.get(Uri.parse('$baseUrl$pathWithQuery'));
+    final response = await _send(
+      () => _http.get(Uri.parse('$baseUrl$pathWithQuery')),
+    );
     return _decode(response);
   }
 
   Future<dynamic> post(String path, {Object? body}) async {
-    final response = await _http.post(
-      _uri(path),
-      headers: {'Content-Type': 'application/json'},
-      body: body == null ? null : jsonEncode(body),
+    final response = await _send(
+      () => _http.post(
+        _uri(path),
+        headers: {'Content-Type': 'application/json'},
+        body: body == null ? null : jsonEncode(body),
+      ),
     );
     return _decode(response);
   }
 
   Future<dynamic> delete(String path) async {
-    final response = await _http.delete(_uri(path));
+    final response = await _send(() => _http.delete(_uri(path)));
     return _decode(response);
   }
 
