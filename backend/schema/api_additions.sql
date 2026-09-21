@@ -99,16 +99,85 @@ CREATE TABLE IF NOT EXISTS search_aliases (
   expansion TEXT NOT NULL      -- bare alternatives, '|' separated; each is prefixed and OR'ed with the lexeme
 );
 
--- Seeded from the live catalog: 'tv' appears in 28 products, 'televis' in
--- 3, 'tvs' in 5 — the english stemmer leaves 'tv' and 'tvs' as separate
--- lexemes, so the family has to be stated explicitly, in both directions.
--- Add rows here to teach the search engine a new equivalence; the stored
--- search_vector never needs rebuilding.
+-- Seeded from the live catalog (418 products, re-surveyed before each
+-- growth): 'tv' appears in 28 products, 'televis' in 3, 'tvs' in 5 — the
+-- english stemmer leaves 'tv' and 'tvs' as separate lexemes, so the family
+-- has to be stated explicitly, in both directions. Every lexeme below is
+-- the stem a shopper's word actually reduces to, and every expansion is
+-- either a lexeme the vector holds or a prefix of one (expansions are
+-- matched with :*, so one row covers the whole inflection family of the
+-- alternative). Pairs the prefixing already bridges (game/gaming,
+-- micro/microwave, blinds/blind) are deliberately NOT here — they would be
+-- dead weight. Add rows here to teach the search engine a new equivalence;
+-- the stored search_vector never needs rebuilding.
 INSERT INTO search_aliases (lexeme, expansion) VALUES
-  ('tv',      'televis|tvs'),
-  ('tvs',     'televis|tv'),
-  ('televis', 'tv|tvs'),
-  ('cam',     'camera')
+  -- the originals, proven by the test suite
+  ('tv',        'televis|tvs'),
+  ('tvs',       'televis|tv'),
+  ('televis',   'tv|tvs'),
+  ('cam',       'camera'),
+  -- seating: sofa/couch/loveseat are three unrelated lexemes
+  ('sofa',      'couch|loveseat'),
+  ('couch',     'sofa|loveseat'),
+  ('loveseat',  'sofa|couch'),
+  -- computers: "desktop"/"pc"/"computer" never meet "laptop" or each other
+  ('desktop',   'comput|pc|laptop'),
+  ('pc',        'comput|desktop|laptop'),
+  ('comput',    'pc|desktop'),
+  ('laptop',    'notebook|chromebook'),
+  ('notebook',  'laptop|comput'),
+  -- storage furniture: dresser/chest/wardrobe/closet/armoire/cupboard
+  ('dresser',   'chest|armoir|wardrob|cabinet'),
+  ('armoir',    'dresser|wardrob|cabinet'),
+  ('wardrob',   'dresser|armoir|closet'),
+  ('closet',    'wardrob|armoir'),
+  ('cupboard',  'cabinet|dresser'),
+  ('desk',      'tabl|comput'),
+  -- bedding: the comforter family hides behind a stemmer quirk
+  -- ("comforter" -> 'comfort'), and none of the words share a prefix
+  ('pillow',    'cushion'),
+  ('cushion',   'pillow'),
+  ('blanket',   'comfort|quilt|duvet|bedspread'),
+  ('comfort',   'duvet|blanket|quilt|bedspread'),
+  ('quilt',     'comfort|blanket|duvet|bedspread'),
+  ('duvet',     'comfort|blanket|quilt|bedspread'),
+  ('bedspread', 'comfort|blanket|quilt|duvet'),
+  ('sheet',     'bedsheet'),
+  ('bedsheet',  'sheet'),
+  ('rug',       'carpet|mat'),
+  ('lamp',      'light'),
+  -- bags: 'bag:*' cannot reach handbag/backpack, and nobody stores "purse"
+  ('bag',       'backpack|handbag'),
+  ('purs',      'bag|handbag'),
+  ('handbag',   'purs|bag'),
+  ('backpack',  'bag'),
+  -- phones: every compounding of 'phone' stems to its own single lexeme,
+  -- so 'phone:*' matches none of them (the prefix must be at the START)
+  ('phone',     'cellphon|smartphon|mobil'),
+  ('cellphon',  'phone|smartphon'),
+  ('smartphon', 'phone|cellphon'),
+  ('mobil',     'phone|cellphon|smartphon'),
+  ('headphon',  'earphon|earbud|headset'),
+  ('earphon',   'headphon|earbud'),
+  ('earbud',    'headphon|earphon'),
+  -- screens
+  ('monitor',   'screen|display'),
+  ('screen',    'monitor|display'),
+  -- drives
+  ('ssd',       'storag|drive'),
+  ('drive',     'ssd|storag'),
+  -- window dressings
+  ('curtain',   'drape|blind'),
+  ('drape',     'curtain|blind'),
+  ('blind',     'curtain|drape'),
+  -- fitness: "exercise" stems to a lexeme the catalog never stores
+  ('exercis',   'gym|fit|workout'),
+  -- apparel: the stemmer splits pant/jean/trouser and shirt/top cleanly apart
+  ('shirt',     'top|tee'),
+  ('pant',      'jean|trouser|slack'),
+  ('jean',      'pant|trouser|slack'),
+  ('bike',      'bicycl'),
+  ('bicycl',    'bike')
 ON CONFLICT (lexeme) DO UPDATE SET expansion = EXCLUDED.expansion;
 
 CREATE OR REPLACE FUNCTION products_tsquery(q TEXT) RETURNS tsquery
