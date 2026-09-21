@@ -192,11 +192,12 @@ def search_products_for_retailer (conn, retailer_id: str, search_query: str,
                                   limit: int = 25, offset: int = 0) -> list:
     """
     Relevance-ranked full-text search over a retailer's products (name,
-    brand, description). websearch_to_tsquery stems and phrases, ts_rank
-    orders by TF-IDF-style relevance. Substring ILIKE is only the
-    zero-hit fallback: partial words and stopword-only queries never
-    match the tsvector, so they still behave the way they used to.
-    Used to back the "search within a retailer" flow on the Products page.
+    brand, description). products_tsquery() stems, prefixes and expands
+    the query through search_aliases; ts_rank orders by TF-IDF-style
+    relevance. Substring ILIKE is only the zero-hit fallback: mid-word
+    fragments and stopword-only queries never match the tsvector, so
+    they still behave the way they used to. Used to back the "search
+    within a retailer" flow on the Products page.
     """
     fts = f"""
         SELECT p.*, rp.id AS retailer_product_id, rp.external_id,
@@ -205,10 +206,11 @@ def search_products_for_retailer (conn, retailer_id: str, search_query: str,
         FROM retailer_products rp
         JOIN products p ON p.id = rp.product_id
         JOIN retailers r ON r.id = rp.retailer_id
+        CROSS JOIN LATERAL (SELECT products_tsquery(%s) AS tsq) sq
         {_LATEST_PRICE_FOR_RP}
         WHERE rp.retailer_id = %s
-          AND p.search_vector @@ websearch_to_tsquery('english', %s)
-        ORDER BY ts_rank(p.search_vector, websearch_to_tsquery('english', %s)) DESC, p.name
+          AND p.search_vector @@ sq.tsq
+        ORDER BY ts_rank(p.search_vector, sq.tsq) DESC, p.name
         LIMIT %s OFFSET %s
     """
     ilike = f"""
@@ -224,7 +226,7 @@ def search_products_for_retailer (conn, retailer_id: str, search_query: str,
         LIMIT %s OFFSET %s
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(fts, (retailer_id, search_query, search_query, limit, offset))
+        cur.execute(fts, (search_query, retailer_id, limit, offset))
         rows = cur.fetchall()
         if not rows:
             cur.execute(ilike, (retailer_id, f"%{search_query}%", limit, offset))
@@ -235,18 +237,20 @@ def search_products_for_retailer (conn, retailer_id: str, search_query: str,
 def query_products (conn, search_query: str, limit: int = 25, offset: int = 0) -> list:
     """
     Relevance-ranked full-text search over canonical products'
-    name/brand/description, across all retailers. websearch_to_tsquery +
-    ts_rank do the ranking (TF-IDF-ish, stemming via the english
-    dictionary); substring ILIKE runs only when the ranked query returns
-    nothing, so partial words and stopword-only queries keep working.
+    name/brand/description, across all retailers. products_tsquery()
+    stems, prefixes (partial words) and applies the search_aliases
+    synonym table; ts_rank does the TF-IDF-ish ranking. Substring ILIKE
+    runs only when the ranked query returns nothing, so mid-word
+    fragments and stopword-only queries keep working.
     Backs POST /v1/products/search.
     """
     fts = f"""
         SELECT p.*, {_CHEAPEST_PRICE_COLUMNS}
         FROM products p
+        CROSS JOIN LATERAL (SELECT products_tsquery(%s) AS tsq) sq
         {_CHEAPEST_PRICE_FOR_PRODUCT}
-        WHERE p.search_vector @@ websearch_to_tsquery('english', %s)
-        ORDER BY ts_rank(p.search_vector, websearch_to_tsquery('english', %s)) DESC, p.name
+        WHERE p.search_vector @@ sq.tsq
+        ORDER BY ts_rank(p.search_vector, sq.tsq) DESC, p.name
         LIMIT %s OFFSET %s
     """
     ilike = f"""
@@ -258,7 +262,7 @@ def query_products (conn, search_query: str, limit: int = 25, offset: int = 0) -
         LIMIT %s OFFSET %s
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        cur.execute(fts, (search_query, search_query, limit, offset))
+        cur.execute(fts, (search_query, limit, offset))
         rows = cur.fetchall()
         if not rows:
             cur.execute(ilike, (f"%{search_query}%", limit, offset))

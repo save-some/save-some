@@ -73,3 +73,98 @@ ALTER TABLE products
 
 CREATE INDEX IF NOT EXISTS products_search_vector_gin
   ON products USING GIN (search_vector);
+
+-- ---------------------------------------------------------------------
+-- Recall layer on top of the vector. Stemming folds away inflection but
+-- it cannot fold away abbreviations ("tv" is not a stem or a prefix of
+-- "televis"), and Postgres' own synonym dictionary needs a file in the
+-- server's tsearch_data directory — which Supabase does not let you
+-- write. So the synonym layer is built here, in two parts:
+--
+--   A. prefix expansion. The english dictionary stems both sides, so
+--      the raw query word and the stored lexeme only meet when the
+--      stemmer agrees. Appending :* to every lexeme closes that gap for
+--      partial words ("camer", "televiso", "sams") — the GIN index
+--      supports prefix matches natively.
+--
+--   B. search_aliases. The pairs prefixing cannot express (tv/televis,
+--      pc/desktop, ...) are just data. Each row is a stemmed lexeme and
+--      an OR-alternative to expand it with; products_tsquery() applies
+--      them at query time, so the STORED search_vector never has to be
+--      rebuilt when the vocabulary grows. Add a row, recall changes.
+-- ---------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS search_aliases (
+  lexeme    TEXT PRIMARY KEY,  -- the stemmed form, as websearch_to_tsquery emits it
+  expansion TEXT NOT NULL      -- bare alternatives, '|' separated; each is prefixed and OR'ed with the lexeme
+);
+
+-- Seeded from the live catalog: 'tv' appears in 28 products, 'televis' in
+-- 3, 'tvs' in 5 — the english stemmer leaves 'tv' and 'tvs' as separate
+-- lexemes, so the family has to be stated explicitly, in both directions.
+-- Add rows here to teach the search engine a new equivalence; the stored
+-- search_vector never needs rebuilding.
+INSERT INTO search_aliases (lexeme, expansion) VALUES
+  ('tv',      'televis|tvs'),
+  ('tvs',     'televis|tv'),
+  ('televis', 'tv|tvs'),
+  ('cam',     'camera')
+ON CONFLICT (lexeme) DO UPDATE SET expansion = EXCLUDED.expansion;
+
+CREATE OR REPLACE FUNCTION products_tsquery(q TEXT) RETURNS tsquery
+LANGUAGE plpgsql STABLE AS $$
+DECLARE
+  built   TEXT;
+  tok     TEXT;
+  alt     TEXT;
+  frag    TEXT;
+  frags   TEXT[] := ARRAY[]::TEXT[];
+  pos     INT;
+BEGIN
+  built := websearch_to_tsquery('english', q)::text;
+  -- Stopword-only or garbage input: return SQL NULL so the caller's ILIKE
+  -- fallback runs. Casting '' to tsquery would raise, and routing that
+  -- through the exception handler would quietly skip the fallback.
+  IF built = '' THEN
+    RETURN NULL;
+  END IF;
+
+  -- Every lexeme in the query becomes '( own:* | alias:* | ... )'.
+  -- Prefixing alone would expand into a *narrower* query whenever the
+  -- stemmer agrees less on one side than the other: a product reading
+  -- "televisions" stems to televis as well, so an un-prefixed
+  -- alternative would silently drop it. The expansion has to cover the
+  -- whole prefix family of each alternative.
+  --
+  -- Each lexeme is first swapped for a placeholder and the fragments
+  -- are substituted in a second pass, deliberately: a fragment contains
+  -- quoted lexemes of its own (the aliases), and replacing those in turn
+  -- would nest a second expansion inside the first -- which raises on
+  -- the closing ':*'.
+  FOREACH tok IN ARRAY (
+    SELECT ARRAY (
+      SELECT DISTINCT m[1]
+      FROM regexp_matches(built, '''([a-z0-9]+)''', 'g') AS m
+    )
+  ) LOOP
+    frag := quote_literal(tok) || ':*';
+    FOR alt IN SELECT DISTINCT trim(both FROM a)
+               FROM search_aliases,
+                    unnest(string_to_array(expansion, '|')) AS a
+               WHERE lexeme = tok LOOP
+      frag := frag || ' | ' || quote_literal(alt) || ':*';
+    END LOOP;
+    frags := array_append(frags, '( ' || frag || ' )');
+    built := replace(built, quote_literal(tok), '@' || (array_length(frags, 1) - 1) || '@');
+  END LOOP;
+  -- Pass two: placeholders out, fragments in.
+  FOR pos IN 0..(array_length(frags, 1) - 1) LOOP
+    built := replace(built, '@' || pos || '@', frags[pos + 1]);
+  END LOOP;
+
+  RETURN built::tsquery;
+EXCEPTION WHEN OTHERS THEN
+  -- Prefixing is a recall bonus; a tsquery we cannot parse must never
+  -- take the search down with it. Fall back to plain stemming.
+  RETURN websearch_to_tsquery('english', q);
+END $$;

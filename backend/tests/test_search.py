@@ -1,27 +1,26 @@
 """
-Regression tests for the full-text search rewrite: products grow a
-search_vector and POST /v1/products/search ranks instead of substringing.
+Regression tests for the full-text search engine: products carry a
+search_vector, products_tsquery() stems/prefixes/expands through
+search_aliases, and POST /v1/products/search ranks instead of
+substringing.
 
     cd backend
     DATABASE_URL=postgresql://save_some:save_some_local@127.0.0.1:5433/save_some \
         ./.venv/bin/python -m pytest tests -q
 
-Three properties the old `name ILIKE '%q%' ORDER BY name` could not give,
-each proven by names chosen so the old behaviour is the opposite:
+Each test pins one layer of the engine and fails without it:
 
-  * stemming   — "cameras" hits every marker, while '%cameras%' hit none.
-  * weighting  — a name match outranks a description match, whereas
-                 alphabetical order put "Cabela's" ahead of "Zephyr".
-  * fallback   — a partial word is not a lexeme anywhere, so the only way
-                 it returns anything is the ILIKE fallback.
+  * stemming  — "cameras" finds "Camera" rows (plain ILIKE found none)
+  * ranking   — name hits outrank description hits (alphabetical put
+                 "Cabela's" first)
+  * prefix    — "camer" reaches "camera" lexemes on both sides
+  * aliases   — "tv" reaches "television" and back; no stem or prefix
+                 relation between them, only the search_aliases row
+  * fallback  — a mid-word fragment ("amera") is no lexeme prefix, so
+                 only the ILIKE fallback can ever find it
 
-Every assertion filters to the marker ids, so seeded rows can never make
-them pass (or fail) by accident.
-
-Note on the ranking assertion: ts_rank is per-term frequency and weight,
-not a document-length measure, so a short row and a long row that both
-contain the same query terms tie. Weighting is the ordering signal that
-actually exists, so that is what this pins down.
+Assertions filter responses to the marker ids, so seeded rows can never
+make them pass or fail by accident.
 """
 import os
 
@@ -30,10 +29,12 @@ from fastapi.testclient import TestClient
 
 # (name, brand, description) — ids come back in this order.
 _MARKERS = [
-    ("Zephyr Trail Camera", "WildGuard", None),
-    ("Pixel Phone with Camera Pro", "Zephyr", None),
-    ("Zephyr Trail Camera Mount for Phone", "WildGuard", None),
-    ("Cabela's Essentials", None, "Waterproof bag for trail cameras"),
+    ("Zephyr Trail Camera", "WildGuard", None),                      # 0
+    ("Pixel Phone with Camera Pro", "Zephyr", None),                  # 1
+    ("Zephyr Trail Camera Mount for Phone", "WildGuard", None),       # 2
+    ("Cabela's Essentials", None, "Waterproof bag for trail cameras"),  # 3
+    ("Zephyr 55-inch Smart Television", "WildGuard", None),           # 4
+    ("Trail Camera TV Stand", None, None),                            # 5
 ]
 
 
@@ -73,15 +74,15 @@ def _search(client, query, marker_ids):
     keep = set(marker_ids)
     return [p["id"] for p in r.json()["products"] if p["id"] in keep]
 
-
-def test_stemming_finds_every_marker(client, marker_ids):
-    # The first three names all say "Camera" and the fourth says "cameras"
-    # in its description; ILIKE '%cameras%' matched exactly none of them.
-    assert set(_search(client, "cameras", marker_ids)) == set(marker_ids)
+def test_stemming_finds_every_camera_marker(client, marker_ids):
+    # Names say "Camera", marker 3's description says "cameras";
+    # ILIKE '%cameras%' matched exactly none of them.
+    camera_markers = set(marker_ids) - {marker_ids[4]}  # all but the Television
+    assert set(_search(client, "cameras", camera_markers)) == camera_markers
 
 
 def test_weighted_ranking_beats_alphabetical(client, marker_ids):
-    trail_camera, _, _, description_only = marker_ids
+    trail_camera, description_only = marker_ids[0], marker_ids[3]
     order = _search(client, "trail camera", marker_ids)
     assert description_only in order, "description is not searchable at all"
     assert order.index(trail_camera) < order.index(description_only), (
@@ -89,9 +90,30 @@ def test_weighted_ranking_beats_alphabetical(client, marker_ids):
     )
 
 
-def test_partial_word_falls_back_to_substring(client, marker_ids):
+def test_prefix_matches_partial_words(client, marker_ids):
     trail_camera, description_only = marker_ids[0], marker_ids[3]
     order = _search(client, "camer", marker_ids)
+    assert trail_camera in order, "prefix expansion lost partial words"
+    assert description_only in order, (
+        "prefix applies to every weighted vector, description included"
+    )
+
+
+def test_aliases_bridge_abbreviation_both_directions(client, marker_ids):
+    television, tv_stand = marker_ids[4], marker_ids[5]
+    # "tv" must reach the Television row: tv/tvs/televis are three
+    # separate lexemes with no stemmer or prefix relation between them.
+    assert television in _search(client, "tv", marker_ids)
+    # and "television" must reach the row that only says "TV".
+    assert tv_stand in _search(client, "television", marker_ids)
+
+
+def test_mid_word_falls_back_to_substring(client, marker_ids):
+    trail_camera, description_only = marker_ids[0], marker_ids[3]
+    # "amera" is neither a lexeme nor any lexeme's prefix, so the ranked
+    # query returns zero rows and the ILIKE fallback must rescue — by
+    # name only, which is what the description-only row proves absent.
+    order = _search(client, "amera", marker_ids)
     assert trail_camera in order, "substring fallback returned nothing"
     assert description_only not in order, (
         "the fallback searches names, so a description-only row must not appear"
