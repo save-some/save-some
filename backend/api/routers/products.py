@@ -40,9 +40,10 @@ def recommended_products(
     limit: int = Query(20, ge=1, le=100),
 ):
     """
-    Biggest price drops inside the user's onboarding interests — the empty
-    search state's fuel. Falls back to trending for sparse profiles (the
-    helper owns that decision).
+    People with similar interests are looking at this — neighbours' recent
+    watchlist adds first, padded by the biggest price drops inside the
+    user's onboarding interests and trending for sparse profiles (the
+    helper owns those decisions). The empty search state's fuel.
     """
     with get_db_handle() as conn:
         return retrieve_recommended_products(conn, str(user_id), limit=limit)
