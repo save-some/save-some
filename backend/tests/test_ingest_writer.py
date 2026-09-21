@@ -10,7 +10,7 @@ promises:
   4. --dry-run reports counters but writes zero rows.
 
 Needs a real Postgres with schema.sql + api_additions.sql +
-ingest_additions.sql applied (the CI service container does this):
+ingest_additions.sql applied:
 
     cd backend
     TEST_DATABASE_URL=postgresql://postgres:ci@127.0.0.1:5433/postgres \

@@ -1,7 +1,7 @@
 """
 First backend tests: the app boots against a real Postgres and the endpoints
-the Flutter app leans on answer with the shapes it decodes. Runs in CI against
-a service container (see .github/workflows/ci.yml) and locally with:
+the Flutter app leans on answer with the shapes it decodes. Run them
+against a local Postgres (docker compose's db service, or any URL) with:
 
     cd backend
     DATABASE_URL=postgresql://postgres:ci@127.0.0.1:5432/postgres \
