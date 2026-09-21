@@ -9,6 +9,7 @@ from api.models import Category, Product, Retailer, Store, User
 from typing import Optional, List, Dict
 from uuid import UUID
 from api.utils import get_db_handle
+from api.routers.zipcodes import resolve_zip
 
 
 router = APIRouter (
@@ -50,18 +51,33 @@ def retailer_products(
  
 @router.get("/locations", response_model = List[Store])
 def retailer_locations(
-    lat: float = Query(..., ge=-90, le=90),
-    lng: float = Query(..., ge=-180, le=180),
+    lat: Optional[float] = Query(None, ge=-90, le=90),
+    lng: Optional[float] = Query(None, ge=-180, le=180),
+    zipcode: Optional[str] = Query(None, description="US ZIP (or ZIP+4); resolved server-side"),
     radius_miles: float = Query(25, gt=0, le=200),
     retailer_ids: Optional[List[UUID]] = Query(None),
 ):
     """
     Feeds store pins to the MapBox view.
+
+    Give a lat+lng pair or a zipcode. lat/lng win when both are present —
+    the legacy call shape must not start making outbound ZIP lookups just
+    because a stray zipcode rode along.
     """
+    # Half a pair counts as "neither": silently querying at lat=47.6,
+    # lng=<default 0> would return the Atlantic off Africa, not an error.
+    if lat is None or lng is None:
+        if zipcode is None:
+            raise HTTPException(status_code = 422, detail = "lat+lng or zipcode required")
+        with get_db_handle() as conn:
+            # The same resolver that backs /v1/zipcodes/{zip}: one ZIP,
+            # one lookup, one truth. Its HTTPException (404 unknown ZIP)
+            # propagates unchanged.
+            anchor = resolve_zip(conn, zipcode)
+        lat, lng = anchor["lat"], anchor["lng"]
     with get_db_handle() as conn:
         return retrieve_nearby_stores(
             conn, lat = lat, lng = lng,
             retailer_ids = [str(r) for r in retailer_ids] if retailer_ids else None,
             radius_miles = radius_miles
         )
- 

@@ -141,6 +141,16 @@ class ProductOffer (BaseModel):
     scraped_at: Optional[datetime] = None
 
 
+# One resolved US ZIP: centroid plus a display label ("Seattle, WA").
+# label is nullable — a row seeded without place/state data still locates
+# the map, it just can't name the place.
+class ZipLookupResult(BaseModel):
+    zip: str
+    lat: float
+    lng: float
+    label: Optional[str] = None
+
+
 # Watchlist stuff ...
 
 class WatchlistItemRequest(BaseModel):

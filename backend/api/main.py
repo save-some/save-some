@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import psycopg2
-from api.routers import categories, retailers, users, products, onboarding
+from api.routers import categories, retailers, users, products, onboarding, zipcodes
 from api.models import Category, Product, Retailer, Store, User
 from datetime import datetime, timezone
 
@@ -28,6 +28,7 @@ application.include_router(categories.router, prefix = "/v1")
 application.include_router(retailers.router, prefix = "/v1")
 application.include_router(products.router, prefix = "/v1")
 application.include_router(onboarding.router, prefix = "/v1")
+application.include_router(zipcodes.router, prefix = "/v1")
 
 
 @application.exception_handler(psycopg2.Error)

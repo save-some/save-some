@@ -13,6 +13,7 @@ from helpers.db import (
     query_products,
     log_search,
 )
+from helpers.recommendations import retrieve_recommended_products
 from api.models import (
     Category, Product, Retailer, Store, User,
     ProductSearchRequest, ProductSearchResponse, ProductPrice, ProductOffer
@@ -31,6 +32,20 @@ router = APIRouter (
 def trending_products(limit: int = Query(20, ge=1, le=100)):
     with get_db_handle() as conn:
         return retrieve_trending_products(conn, limit=limit)
+
+
+@router.get("/recommended", response_model = List[Product])
+def recommended_products(
+    user_id: UUID,
+    limit: int = Query(20, ge=1, le=100),
+):
+    """
+    Biggest price drops inside the user's onboarding interests — the empty
+    search state's fuel. Falls back to trending for sparse profiles (the
+    helper owns that decision).
+    """
+    with get_db_handle() as conn:
+        return retrieve_recommended_products(conn, str(user_id), limit=limit)
 
 
 @router.get("")           # the frontend's canonical form answers directly;

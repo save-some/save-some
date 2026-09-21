@@ -579,6 +579,44 @@ def delete_from_watchlist (conn, user_id: str, product_id: str) -> bool:
 
 
 
+
+# ZIP lookup cache (Maps page anchor)
+
+def get_zipcode (conn, zip5: str) -> Optional[dict]:
+    """Cached ZIP row, or None on a miss. Read-only: no commit."""
+    query = """
+        SELECT zip, lat, lng, place_name, state
+        FROM zipcodes
+        WHERE zip = %s
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, (zip5,))
+        row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def upsert_zipcode (conn, zip5: str, lat: float, lng: float,
+                    place_name: str = None, state: str = None) -> dict:
+    """Write-through the geocoder's answer; re-reads so the returned row always
+    matches the table (a concurrent insert keeps the original created_at)."""
+    insert = """
+        INSERT INTO zipcodes (zip, lat, lng, place_name, state)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (zip) DO NOTHING
+    """
+    select = """
+        SELECT zip, lat, lng, place_name, state
+        FROM zipcodes
+        WHERE zip = %s
+    """
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(insert, (zip5, lat, lng, place_name, state))
+        conn.commit()
+        cur.execute(select, (zip5,))
+        row = cur.fetchone()
+    return dict(row)
+
+
 # Search history (History page)
  
 def log_search (conn, user_id: str, query_text: str) -> dict:
